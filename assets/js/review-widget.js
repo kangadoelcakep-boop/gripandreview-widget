@@ -143,6 +143,30 @@
     widgetContainer.querySelector(".rw-step-email").style.display = "none";
     widgetContainer.querySelector(".rw-step-review").style.display = "block";
   }
+
+  // --- CSS INLINE OTOMATIS (bisa dipisah ke file CSS juga) ---
+  const style = document.createElement("style");
+  style.textContent = `
+    .rw-card { 
+      border: 1px solid #ddd; padding: 1rem; border-radius: 12px; 
+      background: #fafafa; max-width: 480px; margin: 1rem auto; 
+      font-family: system-ui; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+    }
+    .rw-card h3 { margin-top: 0; }
+    .rw-step { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
+    .rw-step input, .rw-step textarea, .rw-step select {
+      padding: 0.6rem; border-radius: 8px; border: 1px solid #ccc; font-size: 0.9rem;
+    }
+    .rw-step button {
+      background: #007bff; color: white; border: none; border-radius: 8px;
+      padding: 0.6rem 1rem; cursor: pointer; font-weight: 500;
+    }
+    .rw-step button:hover { background: #0056b3; }
+    .rw-msg { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 6px; font-size: 0.85rem; }
+    .rw-msg.info { background: #e7f3ff; color: #004085; }
+    .rw-msg.warn { background: #fff3cd; color: #856404; }
+    .rw-msg.error { background: #f8d7da; color: #721c24; }
+    .rw-msg.success { background: #d4edda; color: #155724; }
   `;
   document.head.appendChild(style);
 })();
