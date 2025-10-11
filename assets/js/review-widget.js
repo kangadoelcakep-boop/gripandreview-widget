@@ -54,7 +54,7 @@
         <p id="reviewMsg"></p>
       </form>
 
-      <div id="review-list"></div>
+      <div id="list_reviews"></div>
     </div>
   `;
 
@@ -126,7 +126,7 @@
   // Render daftar review
   // =============================
   function renderReviews(reviews) {
-    const list = document.getElementById("review-list");
+    const list = document.getElementById("list_reviews");
     if (!reviews.length) {
       list.innerHTML = "<p>Belum ada ulasan. Jadilah yang pertama mengulas produk ini!</p>";
       updateSummary([]);
