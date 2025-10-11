@@ -2,7 +2,7 @@
 // 🧩 Grip & Review Widget v2.1
 // =============================
 (function () {
-  const backendURL = "https://script.google.com/macros/s/AKfycbwjJQ69NNajRuYS2_w2mZlK7zY3CHs1pbY2vJvOisRtmMZSwEZJIPcn9u4djtUCe1HqPg/exec";
+  const backendURL = "https://gripandreview-backend.kangadoelcakep.workers.dev/";
   const postUrl = window.location.pathname.replace(/^\/+|\/+$/g, "");
   const cacheEmail = localStorage.getItem("reviewEmail");
 
