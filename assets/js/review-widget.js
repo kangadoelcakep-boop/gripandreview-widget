@@ -46,7 +46,10 @@
           <option value="Tokopedia">Tokopedia</option>
           <option value="Shopee">Shopee</option>
           <option value="Lazada">Lazada</option>
+          <option value="Tiktok">Tiktok</option>
+          <option value="Offline">Offline</option>
         </select>
+        <input type="text" id="seller" placeholder="Nama seller" required />
         <button type="submit">Kirim Ulasan</button>
         <p id="reviewMsg"></p>
       </form>
@@ -104,7 +107,7 @@
   function renderReviews(reviews) {
     const list = document.getElementById("review-list");
     if (!reviews.length) {
-      list.innerHTML = "<p>Belum ada ulasan. Jadilah yang pertama!</p>";
+      list.innerHTML = "<p>Belum ada ulasan. Jadilah yang pertama mengulas produk ini!</p>";
       return;
     }
 
