@@ -9,7 +9,7 @@
   "use strict";
 
   // --- KONFIGURASI DASAR ---
-  const BACKEND_URL = "https://script.google.com/macros/s/AKfycbx.../exec"; // ganti dengan URL backend kamu
+  const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwjJQ69NNajRuYS2_w2mZlK7zY3CHs1pbY2vJvOisRtmMZSwEZJIPcn9u4djtUCe1HqPg/exec";
   const CONTAINER_ID = "review-widget"; // id elemen target di artikel
   const widgetContainer = document.getElementById(CONTAINER_ID);
 
