@@ -1,162 +1,117 @@
 // =============================
-// 🧩 Grip & Review Widget v2.0
+// 🧩 Grip & Review Widget v2.1
 // =============================
-(function() {
-  const API_URL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
-  const container = document.getElementById("review-widget");
-  if (!container) return;
+document.addEventListener("DOMContentLoaded", async () => {
+  const backendURL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
+  const postUrl = window.location.pathname.replace(/^\/+|\/+$/g, "");
+  const cacheEmail = localStorage.getItem("reviewEmail");
 
-  // =============================
-  // Inject HTML
-  // =============================
-  container.innerHTML = `
-    <div class="review-summary">
-      <h2 id="avgRating">0.0</h2>
-      <p><span id="totalReviews">0</span> ulasan masuk</p>
-    </div>
-    <div class="rating-bars" id="ratingBars">
-      ${[5,4,3,2,1].map(star => `
-        <div class="rating-bar">
-          <span>${star}★</span>
-          <div class="bar"><div class="bar-fill" data-star="${star}"></div></div>
-          <div class="percent" id="percent-${star}">0%</div>
-        </div>`).join("")}
-    </div>
-
-    <div class="review-section">
-      <h2>💬 Tulis Ulasan</h2>
-
-      <form id="subscribeForm">
-        <input type="email" id="emailInput" placeholder="Masukkan email Anda" required />
-        <button type="submit">Validasi Email</button>
-        <p id="emailMsg"></p>
-      </form>
-
-      <form id="reviewForm" style="display:none;">
-        <input type="text" id="name" placeholder="Nama Anda" required />
-        <div class="star-rating" id="starRating">
-          ${[1,2,3,4,5].map(v => `<span data-value="${v}">★</span>`).join("")}
-        </div>
-        <input type="hidden" id="rating" value="0" required />
-        <textarea id="reviewText" placeholder="Tulis ulasan Anda..." required></textarea>
-        <select id="marketplace">
-          <option value="Tokopedia">Tokopedia</option>
-          <option value="Shopee">Shopee</option>
-          <option value="Lazada">Lazada</option>
-          <option value="Tiktok">Tiktok</option>
-          <option value="Offline">Offline</option>
-        </select>
-        <input type="text" id="seller" placeholder="Nama seller" required />
-        <button type="submit">Kirim Ulasan</button>
-        <p id="reviewMsg"></p>
-      </form>
-
-      <div id="review-list"></div>
-    </div>
+  const wrap = document.getElementById("review-widget");
+  if (!wrap) return;
+  wrap.innerHTML = `
+    <div class="review-summary"></div>
+    <div class="review-list"></div>
+    <div class="review-form"></div>
   `;
 
-  const postUrl = window.location.href;
-  const emailForm = document.getElementById("subscribeForm");
-  const reviewForm = document.getElementById("reviewForm");
-  const emailMsg = document.getElementById("emailMsg");
-  const reviewMsg = document.getElementById("reviewMsg");
-  const cachedEmail = localStorage.getItem("gr_email");
-  const savedName = localStorage.getItem("gr_name");
+  /* --- Load Stats --- */
+  async function loadStats() {
+    const res = await fetch(`${backendURL}?action=get_stats&postUrl=${encodeURIComponent(postUrl)}`);
+    const data = await res.json();
+    const stars = [5, 4, 3, 2, 1];
 
-  // =============================
-  // ⭐ Render Bintang Input
-  // =============================
-  document.querySelectorAll("#starRating span").forEach(star => {
-    star.addEventListener("click", () => {
-      const value = star.dataset.value;
-      document.getElementById("rating").value = value;
-      document.querySelectorAll("#starRating span").forEach(s => s.classList.remove("active"));
-      for (let i = 0; i < value; i++) {
-        document.querySelectorAll("#starRating span")[i].classList.add("active");
-      }
-    });
-  });
+    const bars = stars.map(s => {
+      const percent = data.total ? Math.round((data.count[s - 1] / data.total) * 100) : 0;
+      return `
+        <div class="star-row">
+          <span>${s} ★</span>
+          <div class="bar"><div class="fill" style="width:${percent}%"></div></div>
+          <span>${percent}%</span>
+        </div>
+      `;
+    }).join("");
 
-  // =============================
-  // 📊 Update Ringkasan Rating
-  // =============================
-  async function updateSummary() {
-    try {
-      const res = await fetch(`${API_URL}?action=get_summary&url=${encodeURIComponent(postUrl)}`);
-      const data = await res.json();
-      document.getElementById("avgRating").textContent = data.avg || "0.0";
-      document.getElementById("totalReviews").textContent = data.total || "0";
-    } catch (err) {
-      console.error("Gagal memuat summary:", err);
-    }
+    wrap.querySelector(".review-summary").innerHTML = `
+      <h3>⭐ ${data.average} / 5</h3>
+      <small>${data.total} ulasan</small>
+      <div class="rating-bars">${bars}</div>
+    `;
   }
 
-  // =============================
-  // 💬 Render Daftar Review
-  // =============================
-  function renderReviews(reviews) {
-    const list = document.getElementById("review-list");
+  /* --- Load Reviews --- */
+  async function loadReviews() {
+    const res = await fetch(`${backendURL}?action=list_reviews&postUrl=${encodeURIComponent(postUrl)}`);
+    const reviews = await res.json();
+
     if (!reviews.length) {
-      list.innerHTML = "<p>Belum ada ulasan. Jadilah yang pertama mengulas produk ini!</p>";
+      wrap.querySelector(".review-list").innerHTML = "<p>Belum ada ulasan.</p>";
       return;
     }
+
     const html = reviews.map(r => `
       <div class="review-item">
-        <strong>${r.Name}</strong>
-        <div class="stars">${"★".repeat(r.Rating)}${"☆".repeat(5 - r.Rating)}</div>
+        <strong>${r.Name}</strong> — <span>${"★".repeat(r.Rating)}</span>
         <p>${r.Review}</p>
-        <small>${r.Marketplace} • ${r.Seller}</small>
       </div>
     `).join("");
-    list.innerHTML = html;
+
+    wrap.querySelector(".review-list").innerHTML = html;
   }
 
-  // =============================
-  // 🔁 Load Review
-  // =============================
-  async function loadReviews() {
-    try {
-      const res = await fetch(`${API_URL}?action=list_reviews&url=${encodeURIComponent(postUrl)}`);
-      const data = await res.json();
-      renderReviews(data || []);
-      updateSummary();
-    } catch (err) {
-      console.error("Gagal memuat review:", err);
-    }
+  /* --- Form Review --- */
+  function renderForm() {
+    const form = `
+      <h4>Tulis Ulasan</h4>
+      <form id="reviewForm">
+        <label>Nama</label>
+        <input type="text" name="name" required />
+        <label>Rating</label>
+        <select name="rating" required>
+          <option value="">Pilih</option>
+          <option>5</option><option>4</option><option>3</option>
+          <option>2</option><option>1</option>
+        </select>
+        <label>Ulasan</label>
+        <textarea name="review" required></textarea>
+        <button type="submit">Kirim</button>
+      </form>
+    `;
+    wrap.querySelector(".review-form").innerHTML = form;
+
+    const formEl = document.getElementById("reviewForm");
+    formEl.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fd = new FormData(formEl);
+      const body = {
+        type: "submit_review",
+        name: fd.get("name"),
+        rating: fd.get("rating"),
+        review: fd.get("review"),
+        email: cacheEmail,
+        postUrl
+      };
+
+      const res = await fetch(backendURL, {
+        method: "POST",
+        body: JSON.stringify(body),
+        headers: { "Content-Type": "application/json" }
+      });
+
+      const result = await res.json();
+      if (result.status === "ok") {
+        alert("Ulasan berhasil dikirim!");
+        formEl.reset();
+        await loadStats();
+        await loadReviews();
+      } else {
+        alert(result.message || "Gagal mengirim ulasan.");
+      }
+    });
   }
 
-  // =============================
-  // Kirim Review
-  // =============================
-  reviewForm.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    const name = document.getElementById("name").value.trim();
-    const email = localStorage.getItem("gr_email");
-    const rating = parseInt(document.getElementById("rating").value);
-    const text = document.getElementById("reviewText").value.trim();
-    const marketplace = document.getElementById("marketplace").value;
-    const seller = document.getElementById("seller").value;
+  /* --- Inisialisasi --- */
+  await loadStats();
+  await loadReviews();
+  renderForm();
+});
 
-    const payload = { type: "review", name, email, rating, text, marketplace, seller, postUrl };
-
-    const res = await fetch(API_URL, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload)
-    }).then(r => r.json());
-
-    reviewMsg.textContent = res.message;
-    if (res.status === "ok") {
-      localStorage.setItem("gr_name", name);
-      document.getElementById("reviewText").value = "";
-      document.getElementById("rating").value = "0";
-      document.querySelectorAll("#starRating span").forEach(s => s.classList.remove("active"));
-      loadReviews();
-    }
-  });
-
-  // =============================
-  // Jalankan fungsi awal
-  // =============================
-  loadReviews();
-})();
