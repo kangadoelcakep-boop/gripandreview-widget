@@ -2,10 +2,10 @@
 // 🧩 Grip & Review Widget v1.1
 // =============================
 
-(function () {
+(function() {
   const API_URL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
   const container = document.getElementById("review-widget");
-  if (!container) return; // Tidak ada placeholder
+  if (!container) return;
 
   // =============================
   // Inject HTML ke dalam artikel
@@ -27,14 +27,12 @@
     <div class="review-section">
       <h2>💬 Tulis Ulasan</h2>
 
-      <!-- Form Validasi Email -->
       <form id="subscribeForm">
         <input type="email" id="emailInput" placeholder="Masukkan email Anda" required />
         <button type="submit">Validasi Email</button>
         <p id="emailMsg"></p>
       </form>
 
-      <!-- Form Review -->
       <form id="reviewForm" style="display:none;">
         <input type="text" id="name" placeholder="Nama Anda" required />
         <div class="star-rating" id="starRating">
@@ -54,23 +52,20 @@
         <p id="reviewMsg"></p>
       </form>
 
-      <div id="list_reviews"></div>
+      <div id="review-list"></div>
     </div>
   `;
 
-  // =============================
-  // Variabel & elemen utama
-  // =============================
   const emailForm = document.getElementById("subscribeForm");
   const reviewForm = document.getElementById("reviewForm");
   const emailMsg = document.getElementById("emailMsg");
   const reviewMsg = document.getElementById("reviewMsg");
-  const postUrl = window.location.pathname.replace("/", "").trim() || window.location.href;
+  const postUrl = window.location.href;
   const cachedEmail = localStorage.getItem("gr_email");
   const savedName = localStorage.getItem("gr_name");
 
   // =============================
-  // Fungsi utilitas
+  // ⭐ Render Bintang
   // =============================
   function renderStars() {
     document.querySelectorAll("#starRating span").forEach(star => {
@@ -85,6 +80,9 @@
     });
   }
 
+  // =============================
+  // 🔓 Tampilkan form review
+  // =============================
   function showReviewForm() {
     emailForm.style.display = "none";
     reviewForm.style.display = "block";
@@ -95,38 +93,31 @@
   }
 
   // =============================
-  // Render & Update Summary
+  // 📊 Update Ringkasan Rating
   // =============================
   function updateSummary(reviews) {
-    const total = reviews.length;
-    if (total === 0) {
-      document.getElementById("avgRating").textContent = "0.0";
-      document.getElementById("totalReviews").textContent = "0";
-      document.querySelectorAll(".bar-fill").forEach(b => (b.style.width = "0%"));
-      return;
-    }
+    if (!reviews.length) return;
 
-    const counts = [1, 2, 3, 4, 5].map(star => reviews.filter(r => r.Rating == star).length);
-    const avg = (
-      counts.reduce((sum, c, i) => sum + c * (i + 1), 0) / total
-    ).toFixed(1);
-
+    const avg = (reviews.reduce((sum, r) => sum + Number(r.Rating), 0) / reviews.length).toFixed(1);
     document.getElementById("avgRating").textContent = avg;
-    document.getElementById("totalReviews").textContent = total;
+    document.getElementById("totalReviews").textContent = reviews.length;
 
-    counts.reverse().forEach((count, idx) => {
-      const star = 5 - idx;
-      const percent = Math.round((count / total) * 100);
-      document.querySelector(`#percent-${star}`).textContent = `${percent}%`;
-      document.querySelector(`.bar-fill[data-star="${star}"]`).style.width = `${percent}%`;
+    const counts = [5, 4, 3, 2, 1].map(s => reviews.filter(r => r.Rating == s).length);
+    const total = reviews.length;
+
+    counts.forEach((count, i) => {
+      const star = 5 - i;
+      const percent = ((count / total) * 100).toFixed(0) + "%";
+      document.querySelector(`.bar-fill[data-star="${star}"]`).style.width = percent;
+      document.getElementById(`percent-${star}`).textContent = percent;
     });
   }
 
   // =============================
-  // Render daftar review
+  // 💬 Render Daftar Review
   // =============================
   function renderReviews(reviews) {
-    const list = document.getElementById("list_reviews");
+    const list = document.getElementById("review-list");
     if (!reviews.length) {
       list.innerHTML = "<p>Belum ada ulasan. Jadilah yang pertama mengulas produk ini!</p>";
       updateSummary([]);
@@ -138,7 +129,7 @@
         <strong>${r.Name}</strong>
         <div class="stars">${"★".repeat(r.Rating)}${"☆".repeat(5 - r.Rating)}</div>
         <p>${r.Review}</p>
-        <small>${r.Marketplace} — ${r.Seller || "-"}</small>
+        <small>${r.Marketplace} • ${r.Seller}</small>
       </div>
     `).join("");
 
@@ -147,13 +138,13 @@
   }
 
   // =============================
-  // Load review dari backend
+  // 🔁 Load Review dari backend
   // =============================
   async function loadReviews() {
     try {
-      const res = await fetch(`${API_URL}?action=getReviewsByPost&post=${encodeURIComponent(postUrl)}`);
+      const res = await fetch(`${API_URL}?action=list_reviews&url=${encodeURIComponent(postUrl)}`);
       const data = await res.json();
-      renderReviews(Array.isArray(data) ? data : []);
+      renderReviews(data || []);
     } catch (err) {
       console.error("Gagal memuat review:", err);
     }
@@ -176,7 +167,7 @@
   }
 
   // =============================
-  // Submit email validasi
+  // Validasi Email
   // =============================
   emailForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -207,7 +198,7 @@
   });
 
   // =============================
-  // Submit review
+  // Kirim Review
   // =============================
   reviewForm.addEventListener("submit", async (e) => {
     e.preventDefault();
@@ -227,7 +218,7 @@
       text,
       marketplace,
       seller,
-      postUrl
+      postUrl: encodeURIComponent(postUrl)
     };
 
     const res = await fetch(API_URL, {
@@ -247,7 +238,7 @@
   });
 
   // =============================
-  // Inisialisasi
+  // Jalankan fungsi awal
   // =============================
   renderStars();
   loadReviews();
