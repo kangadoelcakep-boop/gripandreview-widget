@@ -1,8 +1,8 @@
 // =============================
-// 🧩 Grip & Review Widget v1.0
+// 🧩 Grip & Review Widget v1.1
 // =============================
 
-(function() {
+(function () {
   const API_URL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
   const container = document.getElementById("review-widget");
   if (!container) return; // Tidak ada placeholder
@@ -65,7 +65,7 @@
   const reviewForm = document.getElementById("reviewForm");
   const emailMsg = document.getElementById("emailMsg");
   const reviewMsg = document.getElementById("reviewMsg");
-  const postUrl = window.location.href;
+  const postUrl = window.location.pathname.replace("/", "").trim() || window.location.href;
   const cachedEmail = localStorage.getItem("gr_email");
   const savedName = localStorage.getItem("gr_name");
 
@@ -94,32 +94,69 @@
     }
   }
 
-  async function loadReviews() {
-    try {
-      const res = await fetch(`${API_URL}?type=list&url=${encodeURIComponent(postUrl)}`);
-      const data = await res.json();
-      renderReviews(data.reviews || []);
-    } catch (err) {
-      console.error("Gagal memuat review:", err);
+  // =============================
+  // Render & Update Summary
+  // =============================
+  function updateSummary(reviews) {
+    const total = reviews.length;
+    if (total === 0) {
+      document.getElementById("avgRating").textContent = "0.0";
+      document.getElementById("totalReviews").textContent = "0";
+      document.querySelectorAll(".bar-fill").forEach(b => (b.style.width = "0%"));
+      return;
     }
+
+    const counts = [1, 2, 3, 4, 5].map(star => reviews.filter(r => r.Rating == star).length);
+    const avg = (
+      counts.reduce((sum, c, i) => sum + c * (i + 1), 0) / total
+    ).toFixed(1);
+
+    document.getElementById("avgRating").textContent = avg;
+    document.getElementById("totalReviews").textContent = total;
+
+    counts.reverse().forEach((count, idx) => {
+      const star = 5 - idx;
+      const percent = Math.round((count / total) * 100);
+      document.querySelector(`#percent-${star}`).textContent = `${percent}%`;
+      document.querySelector(`.bar-fill[data-star="${star}"]`).style.width = `${percent}%`;
+    });
   }
 
+  // =============================
+  // Render daftar review
+  // =============================
   function renderReviews(reviews) {
     const list = document.getElementById("review-list");
     if (!reviews.length) {
       list.innerHTML = "<p>Belum ada ulasan. Jadilah yang pertama mengulas produk ini!</p>";
+      updateSummary([]);
       return;
     }
 
     const html = reviews.map(r => `
       <div class="review-item">
-        <strong>${r.name}</strong>
-        <div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div>
-        <p>${r.text}</p>
+        <strong>${r.Name}</strong>
+        <div class="stars">${"★".repeat(r.Rating)}${"☆".repeat(5 - r.Rating)}</div>
+        <p>${r.Review}</p>
+        <small>${r.Marketplace} — ${r.Seller || "-"}</small>
       </div>
     `).join("");
 
     list.innerHTML = html;
+    updateSummary(reviews);
+  }
+
+  // =============================
+  // Load review dari backend
+  // =============================
+  async function loadReviews() {
+    try {
+      const res = await fetch(`${API_URL}?action=getReviewsByPost&post=${encodeURIComponent(postUrl)}`);
+      const data = await res.json();
+      renderReviews(Array.isArray(data) ? data : []);
+    } catch (err) {
+      console.error("Gagal memuat review:", err);
+    }
   }
 
   // =============================
@@ -209,7 +246,9 @@
     }
   });
 
-  // Jalankan fungsi awal
+  // =============================
+  // Inisialisasi
+  // =============================
   renderStars();
   loadReviews();
 
