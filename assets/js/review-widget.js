@@ -1,172 +1,212 @@
-/* =========================================================
- *  REVIEW WIDGET FRONTEND — gripandreview.com
- *  Versi: 1.0 (Readable, non-minified)
- *  Tujuan: Menyediakan sistem review + verifikasi email otomatis
- *  Ditempatkan 1x di footer agar aktif di semua artikel
- * ========================================================= */
+// =============================
+// 🧩 Grip & Review Widget v1.0
+// =============================
 
-(function () {
-  "use strict";
+(function() {
+  const API_URL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
+  const container = document.getElementById("review-widget");
+  if (!container) return; // Tidak ada placeholder
 
-  // --- KONFIGURASI DASAR ---
-  const BACKEND_URL = "https://script.google.com/macros/s/AKfycbwjJQ69NNajRuYS2_w2mZlK7zY3CHs1pbY2vJvOisRtmMZSwEZJIPcn9u4djtUCe1HqPg/exec";
-  const CONTAINER_ID = "review-widget"; // id elemen target di artikel
-  const widgetContainer = document.getElementById(CONTAINER_ID);
+  // =============================
+  // Inject HTML ke dalam artikel
+  // =============================
+  container.innerHTML = `
+    <div class="review-summary">
+      <h2 id="avgRating">0.0</h2>
+      <p><span id="totalReviews">0</span> ulasan masuk</p>
+    </div>
+    <div class="rating-bars" id="ratingBars">
+      ${[5,4,3,2,1].map(star => `
+        <div class="rating-bar">
+          <span>${star}★</span>
+          <div class="bar"><div class="bar-fill" data-star="${star}"></div></div>
+          <div class="percent" id="percent-${star}">0%</div>
+        </div>`).join("")}
+    </div>
 
-  if (!widgetContainer) return; // jika tidak ada kontainer, hentikan script
+    <div class="review-section">
+      <h2>💬 Tulis Ulasan</h2>
 
-  // --- FUNGSI UTILITAS ---
-  function htmlToElement(html) {
-    const template = document.createElement("template");
-    template.innerHTML = html.trim();
-    return template.content.firstChild;
-  }
+      <!-- Form Validasi Email -->
+      <form id="subscribeForm">
+        <input type="email" id="emailInput" placeholder="Masukkan email Anda" required />
+        <button type="submit">Validasi Email</button>
+        <p id="emailMsg"></p>
+      </form>
 
-  function showMessage(text, type = "info") {
-    const msg = document.createElement("div");
-    msg.className = `rw-msg ${type}`;
-    msg.textContent = text;
-    widgetContainer.querySelector(".rw-messages").appendChild(msg);
-    setTimeout(() => msg.remove(), 4000);
-  }
-
-  async function postData(payload) {
-    const res = await fetch(BACKEND_URL, {
-      method: "POST",
-      body: JSON.stringify(payload),
-      headers: { "Content-Type": "application/json" },
-    });
-    return await res.json();
-  }
-
-  // --- TEMPLATE HTML ---
-  const templateHTML = `
-    <div class="rw-card">
-      <h3>💬 Tinggalkan Review</h3>
-      <div class="rw-messages"></div>
-
-      <!-- LANGKAH 1: Validasi Email -->
-      <div class="rw-step rw-step-email">
-        <label>Masukkan Email Anda:</label>
-        <input type="email" id="rw-email" placeholder="contoh@email.com" required>
-        <button id="rw-validate">Validasi Email</button>
-      </div>
-
-      <!-- LANGKAH 2: Form Review (disembunyikan dulu) -->
-      <div class="rw-step rw-step-review" style="display:none;">
-        <label>Nama Anda:</label>
-        <input type="text" id="rw-name" placeholder="Nama Anda">
-
-        <label>Rating:</label>
-        <select id="rw-rating">
-          <option value="5">⭐⭐⭐⭐⭐</option>
-          <option value="4">⭐⭐⭐⭐</option>
-          <option value="3">⭐⭐⭐</option>
-          <option value="2">⭐⭐</option>
-          <option value="1">⭐</option>
+      <!-- Form Review -->
+      <form id="reviewForm" style="display:none;">
+        <input type="text" id="name" placeholder="Nama Anda" required />
+        <div class="star-rating" id="starRating">
+          ${[1,2,3,4,5].map(v => `<span data-value="${v}">★</span>`).join("")}
+        </div>
+        <input type="hidden" id="rating" value="0" required />
+        <textarea id="reviewText" placeholder="Tulis ulasan Anda..." required></textarea>
+        <select id="marketplace">
+          <option value="Tokopedia">Tokopedia</option>
+          <option value="Shopee">Shopee</option>
+          <option value="Lazada">Lazada</option>
         </select>
+        <button type="submit">Kirim Ulasan</button>
+        <p id="reviewMsg"></p>
+      </form>
 
-        <label>Ulasan Anda:</label>
-        <textarea id="rw-comment" placeholder="Tulis ulasan Anda di sini..."></textarea>
-        <button id="rw-submit">Kirim Review</button>
-      </div>
+      <div id="review-list"></div>
     </div>
   `;
 
-  widgetContainer.appendChild(htmlToElement(templateHTML));
+  // =============================
+  // Variabel & elemen utama
+  // =============================
+  const emailForm = document.getElementById("subscribeForm");
+  const reviewForm = document.getElementById("reviewForm");
+  const emailMsg = document.getElementById("emailMsg");
+  const reviewMsg = document.getElementById("reviewMsg");
+  const postUrl = window.location.href;
+  const cachedEmail = localStorage.getItem("gr_email");
+  const savedName = localStorage.getItem("gr_name");
 
-  // --- EVENT HANDLER: Validasi Email ---
-  const btnValidate = widgetContainer.querySelector("#rw-validate");
-  const inputEmail = widgetContainer.querySelector("#rw-email");
-
-  btnValidate.addEventListener("click", async () => {
-    const email = inputEmail.value.trim().toLowerCase();
-    if (!email) return showMessage("Masukkan email terlebih dahulu.", "warn");
-
-    showMessage("Memeriksa status email...");
-    try {
-      const res = await postData({ type: "checkEmail", email });
-      if (res.status === "ok") {
-        showMessage("Email sudah terverifikasi ✅");
-        showReviewForm();
-      } else if (res.status === "pending") {
-        showMessage("Email belum dikonfirmasi. Cek inbox Anda.", "warn");
-      } else {
-        showMessage("Email belum terdaftar. Mengirim link verifikasi...");
-        const reg = await postData({ type: "subscribe", email });
-        if (reg.status === "ok") {
-          showMessage("Link verifikasi sudah dikirim ke email Anda.");
-        } else {
-          showMessage("Gagal mengirim link verifikasi.", "error");
+  // =============================
+  // Fungsi utilitas
+  // =============================
+  function renderStars() {
+    document.querySelectorAll("#starRating span").forEach(star => {
+      star.addEventListener("click", () => {
+        const value = star.dataset.value;
+        document.getElementById("rating").value = value;
+        document.querySelectorAll("#starRating span").forEach(s => s.classList.remove("active"));
+        for (let i = 0; i < value; i++) {
+          document.querySelectorAll("#starRating span")[i].classList.add("active");
         }
-      }
-    } catch (err) {
-      console.error(err);
-      showMessage("Terjadi kesalahan jaringan.", "error");
-    }
-  });
-
-  // --- EVENT HANDLER: Kirim Review ---
-  const btnSubmit = widgetContainer.querySelector("#rw-submit");
-  btnSubmit.addEventListener("click", async () => {
-    const name = widgetContainer.querySelector("#rw-name").value.trim();
-    const rating = widgetContainer.querySelector("#rw-rating").value;
-    const comment = widgetContainer.querySelector("#rw-comment").value.trim();
-    const email = inputEmail.value.trim().toLowerCase();
-
-    if (!name || !comment) return showMessage("Isi nama dan komentar.", "warn");
-
-    try {
-      const res = await postData({
-        type: "submitReview",
-        email,
-        name,
-        rating,
-        comment,
-        pageUrl: window.location.href,
       });
-
-      if (res.status === "ok") {
-        showMessage("Terima kasih! Review Anda sudah dikirim ✅", "success");
-        btnSubmit.disabled = true;
-      } else {
-        showMessage("Gagal mengirim review.", "error");
-      }
-    } catch (err) {
-      console.error(err);
-      showMessage("Terjadi kesalahan jaringan.", "error");
-    }
-  });
-
-  // --- TAMPILKAN FORM REVIEW ---
-  function showReviewForm() {
-    widgetContainer.querySelector(".rw-step-email").style.display = "none";
-    widgetContainer.querySelector(".rw-step-review").style.display = "block";
+    });
   }
 
-  // --- CSS INLINE OTOMATIS (bisa dipisah ke file CSS juga) ---
-  const style = document.createElement("style");
-  style.textContent = `
-    .rw-card { 
-      border: 1px solid #ddd; padding: 1rem; border-radius: 12px; 
-      background: #fafafa; max-width: 480px; margin: 1rem auto; 
-      font-family: system-ui; box-shadow: 0 2px 6px rgba(0,0,0,0.05);
+  function showReviewForm() {
+    emailForm.style.display = "none";
+    reviewForm.style.display = "block";
+    if (savedName) {
+      document.getElementById("name").value = savedName;
+      document.getElementById("name").style.display = "none";
     }
-    .rw-card h3 { margin-top: 0; }
-    .rw-step { margin-top: 1rem; display: flex; flex-direction: column; gap: 0.5rem; }
-    .rw-step input, .rw-step textarea, .rw-step select {
-      padding: 0.6rem; border-radius: 8px; border: 1px solid #ccc; font-size: 0.9rem;
+  }
+
+  async function loadReviews() {
+    try {
+      const res = await fetch(`${API_URL}?type=list&url=${encodeURIComponent(postUrl)}`);
+      const data = await res.json();
+      renderReviews(data.reviews || []);
+    } catch (err) {
+      console.error("Gagal memuat review:", err);
     }
-    .rw-step button {
-      background: #007bff; color: white; border: none; border-radius: 8px;
-      padding: 0.6rem 1rem; cursor: pointer; font-weight: 500;
+  }
+
+  function renderReviews(reviews) {
+    const list = document.getElementById("review-list");
+    if (!reviews.length) {
+      list.innerHTML = "<p>Belum ada ulasan. Jadilah yang pertama!</p>";
+      return;
     }
-    .rw-step button:hover { background: #0056b3; }
-    .rw-msg { margin-top: 0.5rem; padding: 0.5rem 0.8rem; border-radius: 6px; font-size: 0.85rem; }
-    .rw-msg.info { background: #e7f3ff; color: #004085; }
-    .rw-msg.warn { background: #fff3cd; color: #856404; }
-    .rw-msg.error { background: #f8d7da; color: #721c24; }
-    .rw-msg.success { background: #d4edda; color: #155724; }
-  `;
-  document.head.appendChild(style);
+
+    const html = reviews.map(r => `
+      <div class="review-item">
+        <strong>${r.name}</strong>
+        <div class="stars">${"★".repeat(r.rating)}${"☆".repeat(5 - r.rating)}</div>
+        <p>${r.text}</p>
+      </div>
+    `).join("");
+
+    list.innerHTML = html;
+  }
+
+  // =============================
+  // Cek status email saat load
+  // =============================
+  if (cachedEmail) {
+    fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "check", email: cachedEmail })
+    })
+      .then(res => res.json())
+      .then(d => {
+        if (d.state === "approved") showReviewForm();
+        else localStorage.removeItem("gr_email");
+      });
+  }
+
+  // =============================
+  // Submit email validasi
+  // =============================
+  emailForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = document.getElementById("emailInput").value.trim().toLowerCase();
+    const joinUrl = window.location.href;
+    emailMsg.textContent = "⏳ Memvalidasi email...";
+
+    const check = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "check", email })
+    }).then(r => r.json());
+
+    if (check.state === "approved") {
+      localStorage.setItem("gr_email", email);
+      emailMsg.textContent = "✅ Email sudah terverifikasi!";
+      showReviewForm();
+      return;
+    }
+
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ type: "subscribe", email, joinUrl })
+    }).then(r => r.json());
+
+    emailMsg.textContent = res.message || "⚠️ Terjadi kesalahan.";
+  });
+
+  // =============================
+  // Submit review
+  // =============================
+  reviewForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const name = document.getElementById("name").value.trim();
+    const email = localStorage.getItem("gr_email");
+    const rating = parseInt(document.getElementById("rating").value);
+    const text = document.getElementById("reviewText").value.trim();
+    const marketplace = document.getElementById("marketplace").value;
+
+    const payload = {
+      type: "review",
+      name,
+      email,
+      rating,
+      text,
+      marketplace,
+      seller: "Toko Contoh",
+      postUrl
+    };
+
+    const res = await fetch(API_URL, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload)
+    }).then(r => r.json());
+
+    reviewMsg.textContent = res.message;
+    if (res.status === "ok") {
+      localStorage.setItem("gr_name", name);
+      document.getElementById("reviewText").value = "";
+      document.getElementById("rating").value = "0";
+      document.querySelectorAll("#starRating span").forEach(s => s.classList.remove("active"));
+      loadReviews();
+    }
+  });
+
+  // Jalankan fungsi awal
+  renderStars();
+  loadReviews();
+
 })();
