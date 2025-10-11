@@ -180,6 +180,7 @@
     const rating = parseInt(document.getElementById("rating").value);
     const text = document.getElementById("reviewText").value.trim();
     const marketplace = document.getElementById("marketplace").value;
+    const seller = document.getElementById("seller").value;
 
     const payload = {
       type: "review",
@@ -188,7 +189,7 @@
       rating,
       text,
       marketplace,
-      seller: "Toko Contoh",
+      seller,
       postUrl
     };
 
