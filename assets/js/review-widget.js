@@ -1,24 +1,59 @@
-// =============================
-// 🧩 Grip & Review Widget v2.1
-// =============================
+/* ==========================================
+ 🧩 Grip & Review Widget — Stable v1.3
+ Injected Rating + Review + Auto Stats
+========================================== */
+
 (function () {
-  const backendURL = "https://gripandreview-backend.kangadoelcakep.workers.dev/";
+  const backendURL = "https://script.google.com/macros/s/AKfycbwjJQ69NNajRuYS2_w2mZlK7zY3CHs1pbY2vJvOisRtmMZSwEZJIPcn9u4djtUCe1HqPg/exec";
   const postUrl = window.location.pathname.replace(/^\/+|\/+$/g, "");
   const cacheEmail = localStorage.getItem("reviewEmail");
 
-  // Tunggu sampai elemen ada
-  document.addEventListener("DOMContentLoaded", initWidget);
+  // Tambahkan CSS bawaan langsung ke <head>
+  const style = document.createElement("style");
+  style.textContent = `
+    #review-widget { font-family: system-ui, sans-serif; margin: 2rem 0; }
+    .review-summary { border-bottom: 2px solid #eee; padding-bottom: 1rem; margin-bottom: 1rem; }
+    .review-summary h3 { font-size: 1.8rem; margin: 0; color: #f5a623; }
+    .review-summary small { color: #666; }
+    .rating-bars { margin-top: .8rem; }
+    .star-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: .9rem; }
+    .star-row .bar { flex: 1; background: #eee; height: 8px; border-radius: 4px; overflow: hidden; }
+    .star-row .fill { background: #f5a623; height: 100%; transition: width .4s ease; }
+    .review-item { border-bottom: 1px solid #eee; padding: .6rem 0; }
+    .review-item strong { color: #333; }
+    .review-item span { color: #f5a623; font-size: .95rem; }
+    .review-item p { margin: .3rem 0; color: #444; }
+    .review-form { margin-top: 1.5rem; border-top: 2px solid #eee; padding-top: 1rem; }
+    .review-form form { display: flex; flex-direction: column; gap: .6rem; }
+    .review-form input, .review-form select, .review-form textarea {
+      padding: .5rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem;
+    }
+    .review-form button {
+      background: #f5a623; color: white; padding: .6rem; border: none;
+      border-radius: 6px; font-weight: bold; cursor: pointer; transition: background .2s;
+    }
+    .review-form button:hover { background: #e5941f; }
+  `;
+  document.head.appendChild(style);
 
-  async function initWidget() {
+  // Fungsi utama
+  function tryInitWidget(retry = 0) {
     const wrap = document.getElementById("review-widget");
     if (!wrap) {
-      console.warn("⚠️ Elemen #review-widget tidak ditemukan di halaman.");
+      if (retry < 10) {
+        console.log("⏳ Menunggu elemen #review-widget muncul...");
+        setTimeout(() => tryInitWidget(retry + 1), 500);
+      } else {
+        console.warn("⚠️ Elemen #review-widget tidak ditemukan setelah menunggu 5 detik.");
+      }
       return;
     }
 
     console.log("✅ Review widget ditemukan, memuat konten...");
+    initWidget(wrap);
+  }
 
-    // Template dasar
+  async function initWidget(wrap) {
     wrap.innerHTML = `
       <div class="review-summary">Memuat ringkasan...</div>
       <div class="review-list">Memuat ulasan...</div>
@@ -131,7 +166,7 @@
         const result = await res.json();
 
         if (result.status === "ok") {
-          alert("Ulasan berhasil dikirim!");
+          alert("✅ Ulasan berhasil dikirim!");
           formEl.reset();
           await loadStats(wrap);
           await loadReviews(wrap);
@@ -144,4 +179,7 @@
       }
     });
   }
+
+  // Jalankan pengecekan otomatis sampai elemen tersedia
+  tryInitWidget();
 })();
