@@ -1,166 +1,165 @@
-/* ============================================================
-   REVIEW WIDGET – gripandreview.com
-   Author: Grip & Review Team
-   Versi: 1.0.0
-   ============================================================ */
+/* ==========================================
+ 🧩 Grip & Review Widget — Stable v1.5
+ Injected Rating + Review + Auto Stats
+ backend url : pake worker 
+========================================== */
 
 (function () {
-  const API_URL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
-  const WIDGET_SELECTOR = "#review-widget";
-  const EMAIL_KEY = "gripandreview_user_email";
+  const backendURL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
+  const postUrl = window.location.pathname.replace(/^\/+|\/+$/g, "");
+  const cacheEmail = localStorage.getItem("reviewEmail");
 
-  document.addEventListener("DOMContentLoaded", initWidget);
+  // Tambahkan CSS bawaan langsung ke <head>
+  const style = document.createElement("style");
+  style.textContent = `
+    #review-widget { font-family: system-ui, sans-serif; margin: 2rem 0; }
+    .review-summary { border-bottom: 2px solid #eee; padding-bottom: 1rem; margin-bottom: 1rem; }
+    .review-summary h3 { font-size: 1.8rem; margin: 0; color: #f5a623; }
+    .review-summary small { color: #666; }
+    .rating-bars { margin-top: .8rem; }
+    .star-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: .9rem; }
+    .star-row .bar { flex: 1; background: #eee; height: 8px; border-radius: 4px; overflow: hidden; }
+    .star-row .fill { background: #f5a623; height: 100%; transition: width .4s ease; }
+    .review-item { border-bottom: 1px solid #eee; padding: .6rem 0; }
+    .review-item strong { color: #333; }
+    .review-item span { color: #f5a623; font-size: .95rem; }
+    .review-item p { margin: .3rem 0; color: #444; }
+    .review-form { margin-top: 1.5rem; border-top: 2px solid #eee; padding-top: 1rem; }
+    .review-form form { display: flex; flex-direction: column; gap: .6rem; }
+    .review-form input, .review-form select, .review-form textarea {
+      padding: .5rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem;
+    }
+    .review-form button {
+      background: #f5a623; color: white; padding: .6rem; border: none;
+      border-radius: 6px; font-weight: bold; cursor: pointer; transition: background .2s;
+    }
+    .review-form button:hover { background: #e5941f; }
+  `;
+  document.head.appendChild(style);
 
-  // --- INIT ---
-  function initWidget() {
-    const wrap = document.querySelector(WIDGET_SELECTOR);
+  // Fungsi utama
+  function tryInitWidget(retry = 0) {
+    const wrap = document.getElementById("review-widget");
     if (!wrap) {
-      console.warn("❌ Review widget container tidak ditemukan.");
+      if (retry < 10) {
+        console.log("⏳ Menunggu elemen #review-widget muncul...");
+        setTimeout(() => tryInitWidget(retry + 1), 500);
+      } else {
+        console.warn("⚠️ Elemen #review-widget tidak ditemukan setelah menunggu 5 detik.");
+      }
       return;
     }
 
-    // Inject HTML dasar
-    wrap.innerHTML = `
-      <style>
-        .review-summary { margin-bottom: 1rem; border-bottom: 1px solid #ddd; padding-bottom: 1rem; }
-        .review-stars { color: #ffb400; font-size: 1.1rem; margin-bottom: .25rem; }
-        .bar { background: #eee; border-radius: 3px; overflow: hidden; height: 6px; margin: 4px 0; }
-        .bar-fill { background: #ffb400; height: 100%; }
-        .review-item { border-bottom: 1px solid #eee; padding: .75rem 0; }
-        .review-item:last-child { border-bottom: none; }
-        .review-form { margin-top: 1rem; }
-        .review-form input, .review-form textarea, .review-form select {
-          width: 100%; padding: 8px; margin-bottom: 10px;
-          border: 1px solid #ccc; border-radius: 4px;
-        }
-        .review-form button {
-          background: #0078d7; color: white; border: none;
-          padding: 10px 16px; border-radius: 4px; cursor: pointer;
-        }
-        .review-form button:hover { background: #005fa3; }
-      </style>
+    console.log("✅ Review widget ditemukan, memuat konten...");
+    initWidget(wrap);
+  }
 
-      <div class="review-summary"></div>
-      <div class="review-list"></div>
-      <div class="review-form"></div>
+  async function initWidget(wrap) {
+    wrap.innerHTML = `
+      <div class="review-summary">Memuat ringkasan...</div>
+      <div class="review-list">Memuat ulasan...</div>
+      <div class="review-form">Memuat form...</div>
     `;
 
-    console.log("✅ Review widget ditemukan, memuat konten...");
-
-    const postUrl = window.location.pathname.replace(/^\/+|\/+$/g, "");
-    loadStats(wrap, postUrl);
-    loadReviews(wrap, postUrl);
-    renderForm(wrap, postUrl);
+    await loadStats(wrap);
+    await loadReviews(wrap);
+    renderForm(wrap);
   }
 
-  // --- LOAD SUMMARY ---
-  async function loadStats(wrap, postUrl) {
-    const summaryEl = wrap.querySelector(".review-summary");
-    summaryEl.innerHTML = `<p>Memuat statistik...</p>`;
-
+  /* --- Load Stats --- */
+  async function loadStats(wrap) {
     try {
-      const res = await fetch(`${API_URL}?action=list_reviews&postUrl=${encodeURIComponent(postUrl)}`);
-      const reviews = await res.json();
+      const res = await fetch(`${backendURL}?action=get_stats&postUrl=${encodeURIComponent(postUrl)}`);
+      const data = await res.json();
 
-      if (!reviews || !reviews.length) {
-        summaryEl.innerHTML = `<p>Belum ada ulasan untuk produk ini.</p>`;
+      if (!data || !data.total) {
+        wrap.querySelector(".review-summary").innerHTML = `<p>Belum ada rating untuk produk ini.</p>`;
         return;
       }
 
-      const avg = reviews.reduce((a, b) => a + Number(b.Rating), 0) / reviews.length;
-      const starAvg = avg.toFixed(1);
-      const counts = [5, 4, 3, 2, 1].map(star =>
-        reviews.filter(r => Number(r.Rating) === star).length
-      );
+      const stars = [5, 4, 3, 2, 1];
+      const bars = stars.map(s => {
+        const percent = data.total ? Math.round((data.count[s - 1] / data.total) * 100) : 0;
+        return `
+          <div class="star-row">
+            <span>${s} ★</span>
+            <div class="bar"><div class="fill" style="width:${percent}%"></div></div>
+            <span>${percent}%</span>
+          </div>
+        `;
+      }).join("");
 
-      const bars = counts
-        .map((c, i) => {
-          const percent = (c / reviews.length) * 100;
-          return `
-            <div>${5 - i} ★
-              <div class="bar"><div class="bar-fill" style="width:${percent}%;"></div></div>
-            </div>`;
-        })
-        .join("");
-
-      summaryEl.innerHTML = `
-        <div class="review-stars">${renderStars(starAvg)} <b>${starAvg}</b> dari ${reviews.length} ulasan</div>
-        ${bars}
+      wrap.querySelector(".review-summary").innerHTML = `
+        <h3>⭐ ${data.average} / 5</h3>
+        <small>${data.total} ulasan</small>
+        <div class="rating-bars">${bars}</div>
       `;
     } catch (err) {
-      console.error("Gagal memuat statistik:", err);
-      summaryEl.innerHTML = `<p>Gagal memuat data ulasan.</p>`;
+      console.error("Gagal load stats:", err);
+      wrap.querySelector(".review-summary").innerHTML = `<p>Gagal memuat statistik.</p>`;
     }
   }
 
-  // --- LOAD REVIEWS ---
-  async function loadReviews(wrap, postUrl) {
-    const listEl = wrap.querySelector(".review-list");
-    listEl.innerHTML = `<p>Memuat ulasan...</p>`;
-
+  /* --- Load Reviews --- */
+  async function loadReviews(wrap) {
     try {
-      const res = await fetch(`${API_URL}?action=list_reviews&postUrl=${encodeURIComponent(postUrl)}`);
+      const res = await fetch(`${backendURL}?action=list_reviews&postUrl=${encodeURIComponent(postUrl)}`);
       const reviews = await res.json();
 
       if (!reviews || !reviews.length) {
-        listEl.innerHTML = `<p>Belum ada ulasan.</p>`;
+        wrap.querySelector(".review-list").innerHTML = `<p>Belum ada ulasan.</p>`;
         return;
       }
 
-      listEl.innerHTML = reviews
-        .map(
-          r => `
+      const html = reviews.map(r => `
         <div class="review-item">
-          <div class="review-stars">${renderStars(r.Rating)}</div>
-          <p><strong>${r.Name}</strong> — ${r.Review}</p>
-        </div>`
-        )
-        .join("");
+          <strong>${r.Name}</strong> — <span>${"★".repeat(r.Rating)}</span>
+          <p>${r.Review}</p>
+        </div>
+      `).join("");
+
+      wrap.querySelector(".review-list").innerHTML = html;
     } catch (err) {
-      console.error("Gagal memuat review:", err);
-      listEl.innerHTML = `<p>Gagal memuat ulasan.</p>`;
+      console.error("Gagal load review:", err);
+      wrap.querySelector(".review-list").innerHTML = `<p>Gagal memuat ulasan.</p>`;
     }
   }
 
-  // --- FORM REVIEW ---
-  function renderForm(wrap, postUrl) {
-    const formEl = wrap.querySelector(".review-form");
-    const cachedEmail = localStorage.getItem(EMAIL_KEY) || "";
-
-    formEl.innerHTML = `
-      <h3>Tulis Ulasan</h3>
+  /* --- Form Review --- */
+  function renderForm(wrap) {
+    const form = `
+      <h4>Tulis Ulasan</h4>
       <form id="reviewForm">
-        <input type="text" name="name" placeholder="Nama Anda" required />
-        <input type="email" name="email" placeholder="Email Anda" value="${cachedEmail}" required />
+        <label>Nama</label>
+        <input type="text" name="name" required />
+        <label>Rating</label>
         <select name="rating" required>
-          <option value="">Pilih Rating</option>
-          <option value="5">★★★★★ (5)</option>
-          <option value="4">★★★★☆ (4)</option>
-          <option value="3">★★★☆☆ (3)</option>
-          <option value="2">★★☆☆☆ (2)</option>
-          <option value="1">★☆☆☆☆ (1)</option>
+          <option value="">Pilih</option>
+          <option>5</option><option>4</option><option>3</option>
+          <option>2</option><option>1</option>
         </select>
-        <textarea name="review" placeholder="Tulis ulasan Anda..." required></textarea>
+        <label>Ulasan</label>
+        <textarea name="review" required></textarea>
         <button type="submit">Kirim</button>
       </form>
     `;
+    wrap.querySelector(".review-form").innerHTML = form;
 
-    const form = formEl.querySelector("#reviewForm");
-    form.addEventListener("submit", async e => {
+    const formEl = wrap.querySelector("#reviewForm");
+    formEl.addEventListener("submit", async (e) => {
       e.preventDefault();
-
-      const formData = Object.fromEntries(new FormData(form).entries());
+      const fd = new FormData(formEl);
       const body = {
         type: "submit_review",
-        name: formData.name.trim(),
-        email: formData.email.trim(),
-        rating: formData.rating,
-        review: formData.review.trim(),
+        name: fd.get("name"),
+        rating: fd.get("rating"),
+        review: fd.get("review"),
+        email: cacheEmail,
         postUrl
       };
 
       try {
-        const res = await fetch(API_URL, {
+        const res = await fetch(backendURL, {
           method: "POST",
           body: JSON.stringify(body),
           headers: { "Content-Type": "application/json" }
@@ -169,10 +168,9 @@
 
         if (result.status === "ok") {
           alert("✅ Ulasan berhasil dikirim!");
-          localStorage.setItem(EMAIL_KEY, formData.email.trim());
-          form.reset();
-          await loadStats(wrap, postUrl);
-          await loadReviews(wrap, postUrl);
+          formEl.reset();
+          await loadStats(wrap);
+          await loadReviews(wrap);
         } else {
           alert(result.message || "Gagal mengirim ulasan.");
         }
@@ -183,10 +181,6 @@
     });
   }
 
-  // --- RENDER STARS ---
-  function renderStars(rating) {
-    const full = "★".repeat(Math.round(rating));
-    const empty = "☆".repeat(5 - Math.round(rating));
-    return `<span class="review-stars">${full}${empty}</span>`;
-  }
+  // Jalankan pengecekan otomatis sampai elemen tersedia
+  tryInitWidget();
 })();
