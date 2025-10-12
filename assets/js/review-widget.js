@@ -1,175 +1,178 @@
-/* ==========================================
- 🧩 Grip & Review Widget — Stable v1.3
- Injected Rating + Review + Auto Stats
-========================================== */
+/* ============================================================
+   REVIEW WIDGET – gripandreview.com
+   Author: Grip & Review Team
+   Versi: 1.0.0
+   ============================================================ */
 
-(function () {
-  const backendURL = "https://script.google.com/macros/s/AKfycbwjJQ69NNajRuYS2_w2mZlK7zY3CHs1pbY2vJvOisRtmMZSwEZJIPcn9u4djtUCe1HqPg/exec";
-  const postUrl = window.location.pathname.replace(/^\/+|\/+$/g, "");
-  const cacheEmail = localStorage.getItem("reviewEmail");
+document.addEventListener("DOMContentLoaded", () => {
+  const backendURL =
+    "https://script.google.com/macros/s/AKfycbwjJQ69NNajRuYS2_w2mZlK7zY3CHs1pbY2vJvOisRtmMZSwEZJIPcn9u4djtUCe1HqPg/exec";
+  const wrap = document.querySelector(".review-widget");
+  if (!wrap) return console.warn("⚠️ Review widget tidak ditemukan.");
 
-  // Tambahkan CSS bawaan langsung ke <head>
-  const style = document.createElement("style");
-  style.textContent = `
-    #review-widget { font-family: system-ui, sans-serif; margin: 2rem 0; }
-    .review-summary { border-bottom: 2px solid #eee; padding-bottom: 1rem; margin-bottom: 1rem; }
-    .review-summary h3 { font-size: 1.8rem; margin: 0; color: #f5a623; }
-    .review-summary small { color: #666; }
-    .rating-bars { margin-top: .8rem; }
-    .star-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; font-size: .9rem; }
-    .star-row .bar { flex: 1; background: #eee; height: 8px; border-radius: 4px; overflow: hidden; }
-    .star-row .fill { background: #f5a623; height: 100%; transition: width .4s ease; }
-    .review-item { border-bottom: 1px solid #eee; padding: .6rem 0; }
-    .review-item strong { color: #333; }
-    .review-item span { color: #f5a623; font-size: .95rem; }
-    .review-item p { margin: .3rem 0; color: #444; }
-    .review-form { margin-top: 1.5rem; border-top: 2px solid #eee; padding-top: 1rem; }
-    .review-form form { display: flex; flex-direction: column; gap: .6rem; }
-    .review-form input, .review-form select, .review-form textarea {
-      padding: .5rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem;
-    }
-    .review-form button {
-      background: #f5a623; color: white; padding: .6rem; border: none;
-      border-radius: 6px; font-weight: bold; cursor: pointer; transition: background .2s;
-    }
-    .review-form button:hover { background: #e5941f; }
+  wrap.innerHTML = `
+    <div class="review-summary"></div>
+    <div class="review-list"></div>
+    <div class="review-form"></div>
   `;
-  document.head.appendChild(style);
 
-  // Fungsi utama
-  function tryInitWidget(retry = 0) {
-    const wrap = document.getElementById("review-widget");
-    if (!wrap) {
-      if (retry < 10) {
-        console.log("⏳ Menunggu elemen #review-widget muncul...");
-        setTimeout(() => tryInitWidget(retry + 1), 500);
-      } else {
-        console.warn("⚠️ Elemen #review-widget tidak ditemukan setelah menunggu 5 detik.");
-      }
-      return;
-    }
+  console.log("✅ Review widget ditemukan, memuat konten...");
+  loadStats();
+  loadReviews();
+  setupForm();
 
-    console.log("✅ Review widget ditemukan, memuat konten...");
-    initWidget(wrap);
-  }
-
-  async function initWidget(wrap) {
-    wrap.innerHTML = `
-      <div class="review-summary">Memuat ringkasan...</div>
-      <div class="review-list">Memuat ulasan...</div>
-      <div class="review-form">Memuat form...</div>
-    `;
-
-    await loadStats(wrap);
-    await loadReviews(wrap);
-    renderForm(wrap);
-  }
-
-  /* --- Load Stats --- */
-  async function loadStats(wrap) {
+  /* ------------------------------------------------------------
+     1️⃣  LOAD SUMMARY STATS
+  ------------------------------------------------------------ */
+  async function loadStats() {
     try {
-      const res = await fetch(`${backendURL}?action=get_stats&postUrl=${encodeURIComponent(postUrl)}`);
+      const url = `${backendURL}?action=list_reviews&postUrl=${encodeURIComponent(
+        window.location.pathname.replace(/^\/+|\/+$/g, "")
+      )}`;
+      const res = await fetch(url);
       const data = await res.json();
 
-      if (!data || !data.total) {
-        wrap.querySelector(".review-summary").innerHTML = `<p>Belum ada rating untuk produk ini.</p>`;
+      if (!Array.isArray(data) || data.length === 0) {
+        wrap.querySelector(".review-summary").innerHTML = `<p>Belum ada ulasan.</p>`;
         return;
       }
 
-      const stars = [5, 4, 3, 2, 1];
-      const bars = stars.map(s => {
-        const percent = data.total ? Math.round((data.count[s - 1] / data.total) * 100) : 0;
-        return `
-          <div class="star-row">
-            <span>${s} ★</span>
-            <div class="bar"><div class="fill" style="width:${percent}%"></div></div>
-            <span>${percent}%</span>
-          </div>
-        `;
-      }).join("");
+      const ratings = data.map(r => Number(r.Rating) || 0);
+      const avg = (ratings.reduce((a, b) => a + b, 0) / ratings.length).toFixed(1);
+
+      const counts = [5, 4, 3, 2, 1].map(star => ({
+        star,
+        count: ratings.filter(r => r === star).length
+      }));
+
+      const total = ratings.length;
+      const bars = counts
+        .map(c => {
+          const percent = ((c.count / total) * 100).toFixed(1);
+          return `
+            <div class="bar-row">
+              <span>${c.star} ★</span>
+              <div class="bar"><div style="width:${percent}%"></div></div>
+              <span>${c.count}</span>
+            </div>`;
+        })
+        .join("");
 
       wrap.querySelector(".review-summary").innerHTML = `
-        <h3>⭐ ${data.average} / 5</h3>
-        <small>${data.total} ulasan</small>
-        <div class="rating-bars">${bars}</div>
+        <div class="summary-box">
+          <div class="avg">${avg}<small>/5</small></div>
+          <div class="stars">${"★".repeat(Math.round(avg))}</div>
+          <div class="total">${total} ulasan</div>
+        </div>
+        <div class="bar-wrap">${bars}</div>
       `;
     } catch (err) {
-      console.error("Gagal load stats:", err);
-      wrap.querySelector(".review-summary").innerHTML = `<p>Gagal memuat statistik.</p>`;
+      console.error("Gagal memuat statistik:", err);
     }
   }
 
-  /* --- Load Reviews --- */
-  async function loadReviews(wrap) {
+  /* ------------------------------------------------------------
+     2️⃣  LOAD REVIEW LIST
+  ------------------------------------------------------------ */
+  async function loadReviews() {
     try {
-      const res = await fetch(`${backendURL}?action=list_reviews&postUrl=${encodeURIComponent(postUrl)}`);
-      const reviews = await res.json();
+      const url = `${backendURL}?action=list_reviews&postUrl=${encodeURIComponent(
+        window.location.pathname.replace(/^\/+|\/+$/g, "")
+      )}`;
+      const res = await fetch(url);
+      const data = await res.json();
 
-      if (!reviews || !reviews.length) {
-        wrap.querySelector(".review-list").innerHTML = `<p>Belum ada ulasan.</p>`;
+      const list = wrap.querySelector(".review-list");
+      if (!Array.isArray(data) || data.length === 0) {
+        list.innerHTML = `<p>Belum ada ulasan, jadilah yang pertama!</p>`;
         return;
       }
 
-      const html = reviews.map(r => `
+      list.innerHTML = data
+        .map(
+          r => `
         <div class="review-item">
-          <strong>${r.Name}</strong> — <span>${"★".repeat(r.Rating)}</span>
+          <div class="r-header">
+            <strong>${r.Name}</strong>
+            <span class="stars">${"★".repeat(r.Rating)}</span>
+          </div>
           <p>${r.Review}</p>
-        </div>
-      `).join("");
-
-      wrap.querySelector(".review-list").innerHTML = html;
+        </div>`
+        )
+        .join("");
     } catch (err) {
-      console.error("Gagal load review:", err);
-      wrap.querySelector(".review-list").innerHTML = `<p>Gagal memuat ulasan.</p>`;
+      console.error("Gagal memuat ulasan:", err);
     }
   }
 
-  /* --- Form Review --- */
-  function renderForm(wrap) {
-    const form = `
-      <h4>Tulis Ulasan</h4>
-      <form id="reviewForm">
-        <label>Nama</label>
-        <input type="text" name="name" required />
-        <label>Rating</label>
-        <select name="rating" required>
-          <option value="">Pilih</option>
-          <option>5</option><option>4</option><option>3</option>
-          <option>2</option><option>1</option>
+  /* ------------------------------------------------------------
+     3️⃣  SETUP REVIEW FORM
+  ------------------------------------------------------------ */
+  function setupForm() {
+    const formBox = wrap.querySelector(".review-form");
+    const savedEmail = localStorage.getItem("gr_email");
+    const savedName = localStorage.getItem("gr_name");
+
+    // Form HTML
+    formBox.innerHTML = `
+      <h3>Tulis Ulasan Anda</h3>
+      <form id="grForm">
+        <input type="text" id="grName" placeholder="Nama Anda" value="${savedName || ""}" required />
+        <input type="email" id="grEmail" placeholder="Email Anda" value="${savedEmail || ""}" required />
+        <select id="grRating" required>
+          <option value="">Pilih Rating</option>
+          <option value="5">5 ★ Sangat Puas</option>
+          <option value="4">4 ★ Puas</option>
+          <option value="3">3 ★ Cukup</option>
+          <option value="2">2 ★ Kurang</option>
+          <option value="1">1 ★ Buruk</option>
         </select>
-        <label>Ulasan</label>
-        <textarea name="review" required></textarea>
-        <button type="submit">Kirim</button>
+        <textarea id="grReview" rows="4" placeholder="Tulis ulasan..." required></textarea>
+        <button type="submit">Kirim Ulasan</button>
       </form>
     `;
-    wrap.querySelector(".review-form").innerHTML = form;
 
-    const formEl = wrap.querySelector("#reviewForm");
-    formEl.addEventListener("submit", async (e) => {
+    const form = formBox.querySelector("#grForm");
+
+    form.addEventListener("submit", async e => {
       e.preventDefault();
-      const fd = new FormData(formEl);
+
+      const name = form.querySelector("#grName").value.trim();
+      const email = form.querySelector("#grEmail").value.trim().toLowerCase();
+      const rating = form.querySelector("#grRating").value;
+      const review = form.querySelector("#grReview").value.trim();
+
+      if (!name || !email || !rating || !review) {
+        alert("Harap isi semua kolom terlebih dahulu.");
+        return;
+      }
+
+      localStorage.setItem("gr_email", email);
+      localStorage.setItem("gr_name", name);
+
       const body = {
-        type: "submit_review",
-        name: fd.get("name"),
-        rating: fd.get("rating"),
-        review: fd.get("review"),
-        email: cacheEmail,
-        postUrl
+        type: "submitReview",
+        name,
+        email,
+        rating,
+        review,
+        postUrl: window.location.pathname.replace(/^\/+|\/+$/g, "")
       };
 
       try {
         const res = await fetch(backendURL, {
           method: "POST",
-          body: JSON.stringify(body),
-          headers: { "Content-Type": "application/json" }
+          mode: "cors",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
         });
         const result = await res.json();
 
         if (result.status === "ok") {
           alert("✅ Ulasan berhasil dikirim!");
-          formEl.reset();
-          await loadStats(wrap);
-          await loadReviews(wrap);
+          form.reset();
+          await loadStats();
+          await loadReviews();
         } else {
           alert(result.message || "Gagal mengirim ulasan.");
         }
@@ -180,6 +183,32 @@
     });
   }
 
-  // Jalankan pengecekan otomatis sampai elemen tersedia
-  tryInitWidget();
-})();
+  /* ------------------------------------------------------------
+     4️⃣  TAMBAHKAN CSS BAWAAN
+  ------------------------------------------------------------ */
+  const style = document.createElement("style");
+  style.textContent = `
+    .review-summary { border-bottom:1px solid #ddd; margin-bottom:1rem; padding-bottom:1rem; }
+    .summary-box { display:flex; align-items:center; gap:1rem; }
+    .summary-box .avg { font-size:2.5rem; font-weight:bold; }
+    .summary-box .stars { color:#ffb400; font-size:1.5rem; }
+    .summary-box .total { color:#555; }
+    .bar-wrap .bar-row { display:flex; align-items:center; gap:0.5rem; font-size:0.9rem; }
+    .bar-wrap .bar { flex:1; background:#eee; height:8px; border-radius:4px; overflow:hidden; }
+    .bar-wrap .bar div { background:#ffb400; height:100%; }
+    .review-item { border-bottom:1px solid #eee; padding:0.75rem 0; }
+    .r-header { display:flex; justify-content:space-between; align-items:center; }
+    .r-header .stars { color:#ffb400; }
+    .review-form { margin-top:1.5rem; }
+    .review-form input, .review-form select, .review-form textarea {
+      width:100%; margin-bottom:0.5rem; padding:0.5rem;
+      border:1px solid #ccc; border-radius:6px;
+    }
+    .review-form button {
+      background:#007bff; color:white; padding:0.6rem 1rem;
+      border:none; border-radius:6px; cursor:pointer;
+    }
+    .review-form button:hover { background:#0069d9; }
+  `;
+  document.head.appendChild(style);
+});
