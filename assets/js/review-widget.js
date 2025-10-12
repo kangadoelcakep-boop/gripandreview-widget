@@ -1,6 +1,6 @@
 /* ==========================================
- 🧩 Grip & Review Widget — Stable v2.2
- Integrasi penuh dengan Proxy Worker (CORS aman)
+ 🧩 Grip & Review Widget — Stable v2.3
+ Real-time Moderation + Toast + Full Marketplace Field
 ========================================== */
 (function () {
   const API_URL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
@@ -8,6 +8,9 @@
   const cacheEmail = localStorage.getItem("gr_email");
   const cacheName = localStorage.getItem("gr_name");
 
+  /* -----------------------------
+   🔧 CSS STYLING
+  ----------------------------- */
   const style = document.createElement("style");
   style.textContent = `
     #review-widget { font-family: system-ui, sans-serif; margin: 2rem 0; }
@@ -32,10 +35,48 @@
     .star-rating { display: flex; gap: 4px; cursor: pointer; font-size: 1.4rem; }
     .star-rating span { color: #ccc; transition: color .2s; }
     .star-rating span.active { color: #f5a623; }
-    .msg { font-size: .9rem; color: #333; margin-top: .3rem; min-height: 18px; }
+    /* 🔔 Toast Notification */
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: rgba(50, 50, 50, 0.95);
+      color: #fff;
+      padding: 10px 16px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      opacity: 0;
+      transform: translateY(30px);
+      transition: all 0.4s ease;
+      z-index: 9999;
+    }
+    .toast.show {
+      opacity: 1;
+      transform: translateY(0);
+    }
   `;
   document.head.appendChild(style);
 
+  /* -----------------------------
+   🔔 TOAST
+  ----------------------------- */
+  function showToast(message, type = "info") {
+    const toast = document.createElement("div");
+    toast.className = "toast";
+    if (type === "success") toast.style.background = "#4caf50";
+    if (type === "error") toast.style.background = "#f44336";
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.classList.add("show"), 100);
+    setTimeout(() => {
+      toast.classList.remove("show");
+      setTimeout(() => toast.remove(), 400);
+    }, 3000);
+  }
+
+  /* -----------------------------
+   ⚙️ INIT WIDGET
+  ----------------------------- */
   async function init() {
     const wrap = document.getElementById("review-widget");
     if (!wrap) return console.warn("⚠️ #review-widget tidak ditemukan.");
@@ -49,20 +90,24 @@
     await loadStats(wrap);
     await loadReviews(wrap);
 
-    // jika user sudah terverifikasi → langsung tampil form review
     if (cacheEmail) {
       const verified = await validateSubscriber(cacheEmail);
-      if (verified) {
-        renderReviewForm(wrap, cacheName, cacheEmail);
-      } else {
-        renderSubscribeForm(wrap);
-      }
+      if (verified) renderReviewForm(wrap, cacheName, cacheEmail);
+      else renderSubscribeForm(wrap);
     } else {
       renderSubscribeForm(wrap);
     }
+
+    // auto-refresh setiap 30 detik (cek moderasi baru)
+    setInterval(async () => {
+      await loadStats(wrap);
+      await loadReviews(wrap);
+    }, 30000);
   }
 
-  // ========== 🔍 Cek subscriber ==========
+  /* -----------------------------
+   🔍 CEK SUBSCRIBER
+  ----------------------------- */
   async function validateSubscriber(email) {
     try {
       const res = await fetch(`${API_URL}/validate`, {
@@ -77,7 +122,9 @@
     }
   }
 
-  // ========== 📊 Statistik & Ulasan ==========
+  /* -----------------------------
+   📊 LOAD STATS & REVIEWS
+  ----------------------------- */
   async function loadStats(wrap) {
     try {
       const res = await fetch(`${API_URL}?action=get_stats&postUrl=${encodeURIComponent(postUrl)}`);
@@ -86,6 +133,7 @@
         wrap.querySelector(".review-summary").innerHTML = `<p>Belum ada rating.</p>`;
         return;
       }
+
       const stars = [5, 4, 3, 2, 1];
       const bars = stars.map(s => {
         const percent = data.total ? Math.round((data.count[s - 1] / data.total) * 100) : 0;
@@ -115,18 +163,23 @@
         wrap.querySelector(".review-list").innerHTML = `<p>Belum ada ulasan.</p>`;
         return;
       }
+
       const html = reviews.map(r => `
         <div class="review-item">
           <strong>${r.Name}</strong> — <span>${"★".repeat(r.Rating)}</span>
           <p>${r.Review}</p>
+          <small>${r.Marketplace} • ${r.Seller}</small>
         </div>`).join("");
+
       wrap.querySelector(".review-list").innerHTML = html;
     } catch (err) {
       console.error("Gagal load review:", err);
     }
   }
 
-  // ========== ✉️ Form Subscribe (untuk user baru) ==========
+  /* -----------------------------
+   ✉️ SUBSCRIBE FORM
+  ----------------------------- */
   function renderSubscribeForm(wrap) {
     wrap.querySelector(".review-form").innerHTML = `
       <h4>Validasi Email Sebelum Review</h4>
@@ -134,11 +187,10 @@
         <input type="text" name="name" placeholder="Nama Anda" required />
         <input type="email" name="email" placeholder="Email Anda" required />
         <button type="submit">Validasi Email</button>
-        <p class="msg" id="subMsg"></p>
       </form>
     `;
+
     const form = wrap.querySelector("#subscribeForm");
-    const msg = wrap.querySelector("#subMsg");
 
     form.addEventListener("submit", async e => {
       e.preventDefault();
@@ -148,8 +200,8 @@
         email: fd.get("email"),
         joinUrl: window.location.href
       };
+      showToast("⏳ Memproses validasi...", "info");
 
-      msg.textContent = "⏳ Memproses...";
       try {
         const res = await fetch(`${API_URL}/subscribe`, {
           method: "POST",
@@ -157,19 +209,21 @@
           body: JSON.stringify(data)
         });
         const result = await res.json();
-        msg.textContent = result.message || "Terjadi kesalahan.";
+        showToast(result.message || "Terjadi kesalahan.", result.status === "subscribed" ? "success" : "error");
 
         if (result.status === "subscribed") {
           localStorage.setItem("gr_email", data.email);
           localStorage.setItem("gr_name", data.name);
         }
       } catch {
-        msg.textContent = "❌ Gagal koneksi ke server.";
+        showToast("❌ Gagal koneksi ke server.", "error");
       }
     });
   }
 
-  // ========== 🧾 Form Review (user approved) ==========
+  /* -----------------------------
+   🧾 REVIEW FORM
+  ----------------------------- */
   function renderReviewForm(wrap, name, email) {
     wrap.querySelector(".review-form").innerHTML = `
       <h4>Tulis Ulasan</h4>
@@ -178,22 +232,30 @@
           ${[1,2,3,4,5].map(v => `<span data-value="${v}">★</span>`).join("")}
         </div>
         <input type="hidden" name="rating" value="0" />
+        <select name="marketplace" required>
+          <option value="Tokopedia">Tokopedia</option>
+          <option value="Shopee">Shopee</option>
+          <option value="Lazada">Lazada</option>
+          <option value="Tiktok">Tiktok</option>
+          <option value="Offline" selected>Offline</option>
+        </select>
+        <input type="text" name="seller" placeholder="Nama seller" required />
         <textarea name="review" placeholder="Tulis ulasan Anda..." required></textarea>
         <button type="submit">Kirim Ulasan</button>
-        <p class="msg" id="revMsg"></p>
       </form>
     `;
 
     const form = wrap.querySelector("#reviewForm");
     const stars = form.querySelectorAll(".star-rating span");
     const ratingInput = form.querySelector("input[name=rating]");
-    const msg = wrap.querySelector("#revMsg");
 
-    stars.forEach(s => s.addEventListener("click", () => {
-      const val = parseInt(s.dataset.value);
-      ratingInput.value = val;
-      stars.forEach(x => x.classList.toggle("active", parseInt(x.dataset.value) <= val));
-    }));
+    stars.forEach(s =>
+      s.addEventListener("click", () => {
+        const val = parseInt(s.dataset.value);
+        ratingInput.value = val;
+        stars.forEach(x => x.classList.toggle("active", parseInt(x.dataset.value) <= val));
+      })
+    );
 
     form.addEventListener("submit", async e => {
       e.preventDefault();
@@ -203,12 +265,12 @@
         email,
         rating: fd.get("rating"),
         text: fd.get("review"),
-        marketplace: "Offline",
-        seller: "-",
+        marketplace: fd.get("marketplace"),
+        seller: fd.get("seller"),
         postUrl
       };
 
-      msg.textContent = "⏳ Mengirim...";
+      showToast("⏳ Mengirim ulasan...", "info");
       try {
         const res = await fetch(`${API_URL}/review`, {
           method: "POST",
@@ -216,7 +278,7 @@
           body: JSON.stringify(body)
         });
         const result = await res.json();
-        msg.textContent = result.message || "Gagal mengirim.";
+        showToast(result.message || "Gagal mengirim.", result.status === "ok" ? "success" : "error");
 
         if (result.status === "ok") {
           form.reset();
@@ -225,7 +287,7 @@
           await loadReviews(wrap);
         }
       } catch {
-        msg.textContent = "❌ Gagal koneksi ke server.";
+        showToast("❌ Gagal koneksi ke server.", "error");
       }
     });
   }
