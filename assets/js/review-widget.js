@@ -1,6 +1,6 @@
 /* ==========================================
- 🧩 Grip & Review Widget — Stable v2.3
- Real-time Moderation + Toast + Full Marketplace Field
+ 🧩 Grip & Review Widget — Stable v2.4
+ Real Moderation (Visible & Moderation TRUE) + Toast + Safe Rating Default
 ========================================== */
 (function () {
   const API_URL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
@@ -65,6 +65,7 @@
     toast.className = "toast";
     if (type === "success") toast.style.background = "#4caf50";
     if (type === "error") toast.style.background = "#f44336";
+    if (type === "info") toast.style.background = "#333";
     toast.textContent = message;
     document.body.appendChild(toast);
     setTimeout(() => toast.classList.add("show"), 100);
@@ -90,6 +91,7 @@
     await loadStats(wrap);
     await loadReviews(wrap);
 
+    // Cek subscriber (login otomatis)
     if (cacheEmail) {
       const verified = await validateSubscriber(cacheEmail);
       if (verified) renderReviewForm(wrap, cacheName, cacheEmail);
@@ -98,7 +100,7 @@
       renderSubscribeForm(wrap);
     }
 
-    // auto-refresh setiap 30 detik (cek moderasi baru)
+    // Auto-refresh moderasi (cek setiap 30 detik)
     setInterval(async () => {
       await loadStats(wrap);
       await loadReviews(wrap);
@@ -158,9 +160,16 @@
   async function loadReviews(wrap) {
     try {
       const res = await fetch(`${API_URL}?action=list_reviews&postUrl=${encodeURIComponent(postUrl)}`);
-      const reviews = await res.json();
+      const allReviews = await res.json();
+
+      // Filter hanya yang Visible = TRUE & Moderation = TRUE
+      const reviews = allReviews.filter(r =>
+        (r.Visible === true || r.Visible === "TRUE") &&
+        (r.Moderation === true || r.Moderation === "TRUE")
+      );
+
       if (!reviews.length) {
-        wrap.querySelector(".review-list").innerHTML = `<p>Belum ada ulasan.</p>`;
+        wrap.querySelector(".review-list").innerHTML = `<p>Belum ada ulasan terverifikasi.</p>`;
         return;
       }
 
@@ -191,7 +200,6 @@
     `;
 
     const form = wrap.querySelector("#subscribeForm");
-
     form.addEventListener("submit", async e => {
       e.preventDefault();
       const fd = new FormData(form);
@@ -229,9 +237,9 @@
       <h4>Tulis Ulasan</h4>
       <form id="reviewForm">
         <div class="star-rating">
-          ${[1,2,3,4,5].map(v => `<span data-value="${v}">★</span>`).join("")}
+          ${[1, 2, 3, 4, 5].map(v => `<span data-value="${v}">★</span>`).join("")}
         </div>
-        <input type="hidden" name="rating" value="0" />
+        <input type="hidden" name="rating" value="1" /> <!-- Default 1★ -->
         <select name="marketplace" required>
           <option value="Tokopedia">Tokopedia</option>
           <option value="Shopee">Shopee</option>
@@ -248,6 +256,9 @@
     const form = wrap.querySelector("#reviewForm");
     const stars = form.querySelectorAll(".star-rating span");
     const ratingInput = form.querySelector("input[name=rating]");
+
+    // Inisial aktifkan 1★ default
+    stars[0].classList.add("active");
 
     stars.forEach(s =>
       s.addEventListener("click", () => {
@@ -283,6 +294,7 @@
         if (result.status === "ok") {
           form.reset();
           stars.forEach(x => x.classList.remove("active"));
+          stars[0].classList.add("active"); // reset default 1★
           await loadStats(wrap);
           await loadReviews(wrap);
         }
