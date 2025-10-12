@@ -1,216 +1,234 @@
-// =============================
-// 🧩 Grip & Review Widget v1.3
-// =============================
+/* ==========================================
+ 🧩 Grip & Review Widget — Stable v2.2
+ Integrasi penuh dengan Proxy Worker (CORS aman)
+========================================== */
 (function () {
   const API_URL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
-  const container = document.getElementById("review-widget");
-  if (!container) return;
+  const postUrl = window.location.pathname.replace(/^\/+|\/+$/g, "");
+  const cacheEmail = localStorage.getItem("gr_email");
+  const cacheName = localStorage.getItem("gr_name");
 
-  console.log("✅ Review widget ditemukan, memuat konten...");
-
-  // =============================
-  // Inject HTML ke dalam artikel
-  // =============================
-  container.innerHTML = `
-    <style>
-      .review-summary { text-align:center; margin-bottom:20px; }
-      .review-summary h2 { font-size:2em; margin:0; color:var(--accent,#ff9800); }
-      .rating-bars { margin:15px 0; }
-      .rating-bar { display:flex; align-items:center; margin:5px 0; gap:5px; }
-      .rating-bar span { width:30px; }
-      .bar { flex:1; background:#eee; height:8px; border-radius:4px; overflow:hidden; }
-      .bar-fill { height:8px; background:#ff9800; width:0%; transition:width .4s ease; border-radius:4px; }
-      .percent { width:40px; text-align:right; font-size:.85em; color:#666; }
-
-      .review-section { border-top:1px solid #eee; padding-top:15px; margin-top:15px; }
-      .review-item { border-bottom:1px solid #eee; padding:10px 0; }
-      .stars { color:#ff9800; font-size:1.1em; margin-bottom:4px; }
-      .star-rating { cursor:pointer; margin:8px 0; }
-      .star-rating span { font-size:1.4em; color:#ccc; transition:color .3s; }
-      .star-rating span.active, .star-rating span:hover, .star-rating span:hover ~ span { color:#ff9800; }
-
-      .review-form input, .review-form textarea, .review-form select {
-        width:100%; padding:8px; margin-bottom:8px;
-        border:1px solid #ddd; border-radius:6px;
-      }
-      .review-form button {
-        background:#ff9800; border:none; color:white;
-        padding:8px 15px; border-radius:6px; cursor:pointer;
-      }
-      .review-form button:hover { background:#f57c00; }
-      #emailMsg, #reviewMsg { font-size:.9em; color:#555; margin-top:5px; }
-    </style>
-
-    <div class="review-summary">
-      <h2 id="avgRating">0.0</h2>
-      <p><span id="totalReviews">0</span> ulasan masuk</p>
-    </div>
-
-    <div class="rating-bars" id="ratingBars">
-      ${[5,4,3,2,1].map(star => `
-        <div class="rating-bar">
-          <span>${star}★</span>
-          <div class="bar"><div class="bar-fill" data-star="${star}"></div></div>
-          <div class="percent" id="percent-${star}">0%</div>
-        </div>`).join("")}
-    </div>
-
-    <div class="review-section">
-      <h3>💬 Tulis Ulasan</h3>
-      <form id="reviewForm" class="review-form">
-        <input type="text" id="name" placeholder="Nama Anda" required />
-        <input type="email" id="email" placeholder="Email Anda" required />
-        <div class="star-rating" id="starRating">
-          ${[1,2,3,4,5].map(v => `<span data-value="${v}">★</span>`).join("")}
-        </div>
-        <input type="hidden" id="rating" value="0" required />
-        <textarea id="reviewText" placeholder="Tulis ulasan Anda..." required></textarea>
-        <select id="marketplace">
-          <option value="Tokopedia">Tokopedia</option>
-          <option value="Shopee">Shopee</option>
-          <option value="Lazada">Lazada</option>
-          <option value="Tiktok">Tiktok</option>
-          <option value="Offline">Offline</option>
-        </select>
-        <input type="text" id="seller" placeholder="Nama Seller / Toko" required />
-        <button type="submit">Kirim Ulasan</button>
-        <p id="reviewMsg"></p>
-      </form>
-
-      <div id="review-list"></div>
-    </div>
+  const style = document.createElement("style");
+  style.textContent = `
+    #review-widget { font-family: system-ui, sans-serif; margin: 2rem 0; }
+    .review-summary h3 { font-size: 1.8rem; color: #f5a623; margin: 0; }
+    .review-summary small { color: #666; }
+    .rating-bars { margin: 1rem 0; }
+    .star-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+    .bar { flex: 1; background: #eee; height: 8px; border-radius: 4px; overflow: hidden; }
+    .fill { background: #f5a623; height: 100%; transition: width .4s ease; }
+    .review-item { border-bottom: 1px solid #eee; padding: .6rem 0; }
+    .review-item strong { color: #333; }
+    .review-item span { color: #f5a623; }
+    .review-form form { display: flex; flex-direction: column; gap: .6rem; margin-top: 1rem; }
+    .review-form input, .review-form textarea, .review-form select {
+      padding: .5rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem;
+    }
+    .review-form button {
+      background: #f5a623; color: white; padding: .6rem; border: none;
+      border-radius: 6px; font-weight: bold; cursor: pointer; transition: background .2s;
+    }
+    .review-form button:hover { background: #e5941f; }
+    .star-rating { display: flex; gap: 4px; cursor: pointer; font-size: 1.4rem; }
+    .star-rating span { color: #ccc; transition: color .2s; }
+    .star-rating span.active { color: #f5a623; }
+    .msg { font-size: .9rem; color: #333; margin-top: .3rem; min-height: 18px; }
   `;
+  document.head.appendChild(style);
 
-  // Elemen penting
-  const formEl = document.getElementById("reviewForm");
-  const reviewMsg = document.getElementById("reviewMsg");
-  const listEl = document.getElementById("review-list");
-  const postUrl = window.location.href.replace(/https?:\/\//, "");
-  const cachedEmail = localStorage.getItem("gr_email");
-  const cachedName = localStorage.getItem("gr_name");
+  async function init() {
+    const wrap = document.getElementById("review-widget");
+    if (!wrap) return console.warn("⚠️ #review-widget tidak ditemukan.");
 
-  // =============================
-  // ⭐ Interaktif Rating Bintang
-  // =============================
-  document.querySelectorAll("#starRating span").forEach(star => {
-    star.addEventListener("click", () => {
-      const value = parseInt(star.dataset.value);
-      document.getElementById("rating").value = value;
-      document.querySelectorAll("#starRating span").forEach(s => {
-        s.classList.toggle("active", parseInt(s.dataset.value) <= value);
-      });
-    });
-  });
+    wrap.innerHTML = `
+      <div class="review-summary"></div>
+      <div class="review-list"></div>
+      <div class="review-form"></div>
+    `;
 
-  // =============================
-  // 🔁 Load Data Review & Summary
-  // =============================
-  async function loadStats() {
-    try {
-      const res = await fetch(`${API_URL}/stats?postUrl=${encodeURIComponent(postUrl)}`);
-      const data = await res.json();
-      document.getElementById("avgRating").textContent = data.average || 0;
-      document.getElementById("totalReviews").textContent = data.total || 0;
+    await loadStats(wrap);
+    await loadReviews(wrap);
 
-      [5,4,3,2,1].forEach(star => {
-        const count = data.count ? data.count[star - 1] : 0;
-        const percent = data.total ? ((count / data.total) * 100).toFixed(0) : 0;
-        document.querySelector(`.bar-fill[data-star="${star}"]`).style.width = percent + "%";
-        document.getElementById(`percent-${star}`).textContent = percent + "%";
-      });
-    } catch (err) {
-      console.warn("Gagal load stats:", err);
+    // jika user sudah terverifikasi → langsung tampil form review
+    if (cacheEmail) {
+      const verified = await validateSubscriber(cacheEmail);
+      if (verified) {
+        renderReviewForm(wrap, cacheName, cacheEmail);
+      } else {
+        renderSubscribeForm(wrap);
+      }
+    } else {
+      renderSubscribeForm(wrap);
     }
   }
 
-  async function loadReviews() {
+  // ========== 🔍 Cek subscriber ==========
+  async function validateSubscriber(email) {
     try {
-      const res = await fetch(`${API_URL}/reviews?postUrl=${encodeURIComponent(postUrl)}`);
-      const reviews = await res.json();
+      const res = await fetch(`${API_URL}/validate`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email })
+      });
+      const data = await res.json();
+      return data.state === "approved";
+    } catch {
+      return false;
+    }
+  }
 
-      if (!reviews.length) {
-        listEl.innerHTML = "<p>Belum ada ulasan. Jadilah yang pertama!</p>";
+  // ========== 📊 Statistik & Ulasan ==========
+  async function loadStats(wrap) {
+    try {
+      const res = await fetch(`${API_URL}?action=get_stats&postUrl=${encodeURIComponent(postUrl)}`);
+      const data = await res.json();
+      if (!data.total) {
+        wrap.querySelector(".review-summary").innerHTML = `<p>Belum ada rating.</p>`;
         return;
       }
+      const stars = [5, 4, 3, 2, 1];
+      const bars = stars.map(s => {
+        const percent = data.total ? Math.round((data.count[s - 1] / data.total) * 100) : 0;
+        return `
+          <div class="star-row">
+            <span>${s}★</span>
+            <div class="bar"><div class="fill" style="width:${percent}%"></div></div>
+            <span>${percent}%</span>
+          </div>`;
+      }).join("");
 
-      listEl.innerHTML = reviews.map(r => `
+      wrap.querySelector(".review-summary").innerHTML = `
+        <h3>⭐ ${data.average} / 5</h3>
+        <small>${data.total} ulasan</small>
+        <div class="rating-bars">${bars}</div>
+      `;
+    } catch (err) {
+      console.error("Gagal load stats:", err);
+    }
+  }
+
+  async function loadReviews(wrap) {
+    try {
+      const res = await fetch(`${API_URL}?action=list_reviews&postUrl=${encodeURIComponent(postUrl)}`);
+      const reviews = await res.json();
+      if (!reviews.length) {
+        wrap.querySelector(".review-list").innerHTML = `<p>Belum ada ulasan.</p>`;
+        return;
+      }
+      const html = reviews.map(r => `
         <div class="review-item">
-          <strong>${r.Name}</strong>
-          <div class="stars">${"★".repeat(r.Rating)}${"☆".repeat(5 - r.Rating)}</div>
+          <strong>${r.Name}</strong> — <span>${"★".repeat(r.Rating)}</span>
           <p>${r.Review}</p>
-          <small>${r.Marketplace} • ${r.Seller}</small>
-        </div>
-      `).join("");
+        </div>`).join("");
+      wrap.querySelector(".review-list").innerHTML = html;
     } catch (err) {
       console.error("Gagal load review:", err);
     }
   }
 
-  // =============================
-  // 🔓 Atur Visibility Form
-  // =============================
-  if (cachedEmail) {
-    fetch(`${API_URL}/validate`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email: cachedEmail })
-    })
-      .then(r => r.json())
-      .then(d => {
-        if (d.state === "approved") {
-          // Hide email & name kalau sudah terdaftar
-          document.getElementById("email").style.display = "none";
-          document.getElementById("name").style.display = "none";
-        } else {
-          localStorage.removeItem("gr_email");
+  // ========== ✉️ Form Subscribe (untuk user baru) ==========
+  function renderSubscribeForm(wrap) {
+    wrap.querySelector(".review-form").innerHTML = `
+      <h4>Validasi Email Sebelum Review</h4>
+      <form id="subscribeForm">
+        <input type="text" name="name" placeholder="Nama Anda" required />
+        <input type="email" name="email" placeholder="Email Anda" required />
+        <button type="submit">Validasi Email</button>
+        <p class="msg" id="subMsg"></p>
+      </form>
+    `;
+    const form = wrap.querySelector("#subscribeForm");
+    const msg = wrap.querySelector("#subMsg");
+
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const data = {
+        name: fd.get("name"),
+        email: fd.get("email"),
+        joinUrl: window.location.href
+      };
+
+      msg.textContent = "⏳ Memproses...";
+      try {
+        const res = await fetch(`${API_URL}/subscribe`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(data)
+        });
+        const result = await res.json();
+        msg.textContent = result.message || "Terjadi kesalahan.";
+
+        if (result.status === "subscribed") {
+          localStorage.setItem("gr_email", data.email);
+          localStorage.setItem("gr_name", data.name);
         }
-      });
+      } catch {
+        msg.textContent = "❌ Gagal koneksi ke server.";
+      }
+    });
   }
 
-  // =============================
-  // 📤 Kirim Review
-  // =============================
-  formEl.addEventListener("submit", async (e) => {
-    e.preventDefault();
-    reviewMsg.textContent = "⏳ Mengirim ulasan...";
+  // ========== 🧾 Form Review (user approved) ==========
+  function renderReviewForm(wrap, name, email) {
+    wrap.querySelector(".review-form").innerHTML = `
+      <h4>Tulis Ulasan</h4>
+      <form id="reviewForm">
+        <div class="star-rating">
+          ${[1,2,3,4,5].map(v => `<span data-value="${v}">★</span>`).join("")}
+        </div>
+        <input type="hidden" name="rating" value="0" />
+        <textarea name="review" placeholder="Tulis ulasan Anda..." required></textarea>
+        <button type="submit">Kirim Ulasan</button>
+        <p class="msg" id="revMsg"></p>
+      </form>
+    `;
 
-    const payload = {
-      name: cachedName || document.getElementById("name").value.trim(),
-      email: cachedEmail || document.getElementById("email").value.trim().toLowerCase(),
-      rating: parseInt(document.getElementById("rating").value),
-      text: document.getElementById("reviewText").value.trim(),
-      marketplace: document.getElementById("marketplace").value,
-      seller: document.getElementById("seller").value.trim(),
-      postUrl
-    };
+    const form = wrap.querySelector("#reviewForm");
+    const stars = form.querySelectorAll(".star-rating span");
+    const ratingInput = form.querySelector("input[name=rating]");
+    const msg = wrap.querySelector("#revMsg");
 
-    try {
-      const res = await fetch(`${API_URL}/review`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload)
-      });
-      const result = await res.json();
+    stars.forEach(s => s.addEventListener("click", () => {
+      const val = parseInt(s.dataset.value);
+      ratingInput.value = val;
+      stars.forEach(x => x.classList.toggle("active", parseInt(x.dataset.value) <= val));
+    }));
 
-      reviewMsg.textContent = result.message || "Terjadi kesalahan.";
-      if (result.status === "ok") {
-        localStorage.setItem("gr_name", payload.name);
-        localStorage.setItem("gr_email", payload.email);
+    form.addEventListener("submit", async e => {
+      e.preventDefault();
+      const fd = new FormData(form);
+      const body = {
+        name,
+        email,
+        rating: fd.get("rating"),
+        text: fd.get("review"),
+        marketplace: "Offline",
+        seller: "-",
+        postUrl
+      };
 
-        formEl.reset();
-        document.querySelectorAll("#starRating span").forEach(s => s.classList.remove("active"));
-        await loadStats();
-        await loadReviews();
+      msg.textContent = "⏳ Mengirim...";
+      try {
+        const res = await fetch(`${API_URL}/review`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body)
+        });
+        const result = await res.json();
+        msg.textContent = result.message || "Gagal mengirim.";
+
+        if (result.status === "ok") {
+          form.reset();
+          stars.forEach(x => x.classList.remove("active"));
+          await loadStats(wrap);
+          await loadReviews(wrap);
+        }
+      } catch {
+        msg.textContent = "❌ Gagal koneksi ke server.";
       }
-    } catch (err) {
-      reviewMsg.textContent = "⚠️ Gagal mengirim ulasan. Periksa koneksi.";
-      console.error(err);
-    }
-  });
+    });
+  }
 
-  // =============================
-  // 🚀 Jalankan Awal
-  // =============================
-  loadStats();
-  loadReviews();
+  init();
 })();
