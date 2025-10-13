@@ -14,22 +14,23 @@
   const style = document.createElement("style");
   style.textContent = `
     #review-widget { font-family: system-ui, sans-serif; margin: 2rem 0; }
-    .review-summary h3 { font-size: 1.8rem; color: #f5a623; margin: 0; }
+    .review-summary h3 { font-size: 1.8rem; color: #6a4ee9; margin: 0; }
     .review-summary small { color: #666; }
     .rating-bars { margin: 1rem 0; }
+    .meta .rating {color: #6a4ee9 }
     .star-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
     .bar { flex: 1; background: #eee; height: 8px; border-radius: 4px; overflow: hidden; }
-    .fill { background: #f5a623; height: 100%; transition: width .4s ease; }
+    .fill { background: #6a4ee9; height: 100%; transition: width .4s ease; }
     .review-item { border-bottom: 1px solid #eee; padding: .6rem 0; }
     .review-item strong { color: #333; display:block; }
-    .review-item span { color: #f5a623; }
+    .review-item span { color: #6a4ee9; }
     .review-item small { color: #999; font-size: .85rem; }
     .review-form form { display: flex; flex-direction: column; gap: .6rem; margin-top: 1rem; }
     .review-form input, .review-form textarea, .review-form select {
       padding: .5rem; border: 1px solid #ccc; border-radius: 6px; font-size: 1rem;
     }
     .review-form button {
-      background: #f5a623; color: white; padding: .6rem; border: none;
+      background: #6a4ee9; color: white; padding: .6rem; border: none;
       border-radius: 6px; font-weight: bold; cursor: pointer; transition: background .2s;
     }
     .review-form button:hover { background: #e5941f; }
