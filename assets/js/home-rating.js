@@ -52,7 +52,7 @@
         const data=await res.json();
 
         if(!data.total||data.total===0){
-          ratingBox.innerHTML=`<span style="color:#aaa;font-weight:300;">Belum ada rating nih</span>`;
+          ratingBox.innerHTML=`<span style="color:#aaa;align-items:center;font-size:14px;">Belum ada rating nih</span>`;
           ratingBox.classList.add("loaded");
           continue;
         }
