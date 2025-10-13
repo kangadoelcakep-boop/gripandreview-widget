@@ -73,28 +73,7 @@
       setTimeout(() => el.remove(), 400);
     }, 3000);
   }
- /* -----------------------------
-   🌟 Update Rating di Header dan Sidebar
-   ----------------------------- */
-  function updateGlobalRating(data) {
-    const avg = parseFloat(data.average || 0).toFixed(1);
-    const total = data.total || 0;
-    const rounded = Math.round(avg);
-    const stars = "★".repeat(rounded) + "☆".repeat(5 - rounded);
-
-    const main = document.getElementById("product-rating");
-    if (main) {
-      main.innerHTML = `${stars} (${avg}/5) • ${total} Reviews •`;
-    }
-
-    const side = document.getElementById("sidebar-rating");
-    if (side) {
-      side.innerHTML = `
-        ${"★".repeat(rounded)}${"☆".repeat(5 - rounded)}
-      `;
-    }
-  }
-
+ 
   /* -----------------------------
    ⚙️ INIT
   ----------------------------- */
@@ -332,6 +311,28 @@
         showToast("❌ Gagal koneksi ke server.", "error");
       }
     });
+  }
+ 
+ /* -----------------------------
+   🌟 Update Rating di Header dan Sidebar
+   ----------------------------- */
+  function updateGlobalRating(data) {
+    const avg = parseFloat(data.average || 0).toFixed(1);
+    const total = data.total || 0;
+    const rounded = Math.round(avg);
+    const stars = "★".repeat(rounded) + "☆".repeat(5 - rounded);
+
+    const main = document.getElementById("product-rating");
+    if (main) {
+      main.innerHTML = `${stars} (${avg}/5) • ${total} Reviews •`;
+    }
+
+    const side = document.getElementById("sidebar-rating");
+    if (side) {
+      side.innerHTML = `
+        ${"★".repeat(rounded)}${"☆".repeat(5 - rounded)}
+      `;
+    }
   }
 
   init();
