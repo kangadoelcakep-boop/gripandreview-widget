@@ -1,9 +1,10 @@
 /* ==========================================
- 🧩 Grip & Review Widget — Stable v2.8
+ 🧩 Grip & Review Widget — Stable v2.9
+ + Integrasi rating global (#product-rating & sidebar)
+ + Warna utama #6a4ee9
  + Timestamp Review
- + Batas Karakter Input
- + Realtime Counter untuk Ulasan
- + sidebar rating + product rating
+ + Batas Karakter & Counter
+ + Auto-refresh moderasi (30s)
 ========================================== */
 (function () {
   const API_URL = "https://gripandreview-backend.kangadoelcakep.workers.dev";
@@ -17,15 +18,15 @@
   const style = document.createElement("style");
   style.textContent = `
     #review-widget { font-family: system-ui, sans-serif; margin: 2rem 0; }
-    .review-summary h3 { font-size: 1.8rem; color: #f5a623; margin: 0; }
+    .review-summary h3 { font-size: 1.8rem; color: #6a4ee9; margin: 0; }
     .review-summary small { color: #666; }
     .rating-bars { margin: 1rem 0; }
     .star-row { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
     .bar { flex: 1; background: #eee; height: 8px; border-radius: 4px; overflow: hidden; }
-    .fill { background: #f5a623; height: 100%; transition: width .4s ease; }
+    .fill { background: #6a4ee9; height: 100%; transition: width .4s ease; }
     .review-item { border-bottom: 1px solid #eee; padding: .6rem 0; }
     .review-item strong { color: #333; }
-    .review-item span { color: #f5a623; }
+    .review-item span { color: #6a4ee9; }
     .review-item small { color: #888; display:block; margin-top:4px; font-size:0.85rem; }
     .review-form form { display: flex; flex-direction: column; gap: .6rem; margin-top: 1rem; }
     .review-form input, .review-form textarea, .review-form select {
@@ -37,13 +38,13 @@
       transition: color .3s;
     }
     .review-form button {
-      background: #f5a623; color: white; padding: .6rem; border: none;
+      background: #6a4ee9; color: white; padding: .6rem; border: none;
       border-radius: 6px; font-weight: bold; cursor: pointer; transition: background .2s;
     }
-    .review-form button:hover { background: #e5941f; }
+    .review-form button:hover { background: #553ed3; }
     .star-rating { display: flex; gap: 4px; cursor: pointer; font-size: 1.4rem; }
     .star-rating span { color: #ccc; transition: color .2s; }
-    .star-rating span.active { color: #f5a623; }
+    .star-rating span.active { color: #6a4ee9; }
     /* 🔔 Toast */
     .toast {
       position: fixed; bottom: 20px; right: 20px;
@@ -73,7 +74,7 @@
       setTimeout(() => el.remove(), 400);
     }, 3000);
   }
- 
+
   /* -----------------------------
    ⚙️ INIT
   ----------------------------- */
@@ -127,6 +128,7 @@
       const d = await res.json();
       if (!d.total) {
         wrap.querySelector(".review-summary").innerHTML = `<p>Belum ada rating.</p>`;
+        updateGlobalRating(0, 0);
         return;
       }
 
@@ -146,8 +148,8 @@
         <small>${d.total} ulasan</small>
         <div class="rating-bars">${bars}</div>
       `;
-     // 🟡 Sinkronkan ke header dan sidebar
-      updateGlobalRating(data);
+
+      updateGlobalRating(d.average, d.total);
     } catch (err) {
       console.error("Gagal load stats:", err);
     }
@@ -170,7 +172,13 @@
 
       const fmtDate = d => {
         const t = new Date(d);
-        return t.toLocaleString("id-ID", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" });
+        return t.toLocaleString("id-ID", {
+          day: "2-digit",
+          month: "short",
+          year: "numeric",
+          hour: "2-digit",
+          minute: "2-digit"
+        });
       };
 
       wrap.querySelector(".review-list").innerHTML = reviews.map(r => `
@@ -182,6 +190,32 @@
       `).join("");
     } catch (err) {
       console.error("Gagal load review:", err);
+    }
+  }
+
+  /* -----------------------------
+   ✨ UPDATE RATING GLOBAL
+  ----------------------------- */
+  function updateGlobalRating(avg, total) {
+    const top = document.getElementById("product-rating");
+    const side = document.querySelector(".difficulty .rating");
+
+    if (top) {
+      const rounded = parseFloat(avg).toFixed(1);
+      const stars = "★".repeat(Math.round(avg || 0)) + "☆".repeat(5 - Math.round(avg || 0));
+      top.innerHTML = `${stars} (${rounded}/5) • ${total} Reviews •`;
+    }
+
+    if (side) {
+      side.innerHTML = "";
+      const starsCount = Math.round(avg || 0);
+      for (let i = 0; i < starsCount; i++) {
+        const s = document.createElement("span");
+        s.className = "star";
+        s.textContent = "★";
+        s.style.color = "#6a4ee9";
+        side.appendChild(s);
+      }
     }
   }
 
@@ -234,7 +268,7 @@
         <div class="star-rating">
           ${[1, 2, 3, 4, 5].map(v => `<span data-value="${v}">★</span>`).join("")}
         </div>
-        <input type="hidden" name="rating" value="1" /> <!-- default -->
+        <input type="hidden" name="rating" value="1" />
         <select name="marketplace" required>
           <option value="Tokopedia">Tokopedia</option>
           <option value="Shopee">Shopee</option>
@@ -271,7 +305,7 @@
       counter.textContent = `${len} / 500`;
       counter.style.color =
         len > 480 ? "#f44336" :
-        len > 400 ? "#f5a623" : "#888";
+        len > 400 ? "#6a4ee9" : "#888";
     });
 
     // 📨 Submit
@@ -311,28 +345,6 @@
         showToast("❌ Gagal koneksi ke server.", "error");
       }
     });
-  }
- 
- /* -----------------------------
-   🌟 Update Rating di Header dan Sidebar
-   ----------------------------- */
-  function updateGlobalRating(data) {
-    const avg = parseFloat(data.average || 0).toFixed(1);
-    const total = data.total || 0;
-    const rounded = Math.round(avg);
-    const stars = "★".repeat(rounded) + "☆".repeat(5 - rounded);
-
-    const main = document.getElementById("product-rating");
-    if (main) {
-      main.innerHTML = `${stars} (${avg}/5) • ${total} Reviews •`;
-    }
-
-    const side = document.getElementById("sidebar-rating");
-    if (side) {
-      side.innerHTML = `
-        ${"★".repeat(rounded)}${"☆".repeat(5 - rounded)}
-      `;
-    }
   }
 
   init();
