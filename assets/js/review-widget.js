@@ -167,6 +167,8 @@
         <small>${d.total} ulasan</small>
         <div class="rating-bars">${bars}</div>
       `;
+     // 🟡 Sinkronkan ke header dan sidebar
+      updateGlobalRating(data);
     } catch (err) {
       console.error("Gagal load stats:", err);
     }
