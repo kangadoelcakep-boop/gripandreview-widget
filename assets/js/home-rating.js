@@ -22,14 +22,18 @@
   }
 
   // ===== Update tanggal (hapus jam) =====
-  function fixDates(){
-    document.querySelectorAll("time.meta-info[datetime]").forEach(el=>{
-      const raw=el.getAttribute("datetime");
-      if(raw){
-        el.innerHTML=`<svg class="icon main-color small"><use xlink:href="#calendar-icon"></use></svg> ${formatDate(raw)}`;
-      }
-    });
-  }
+  function fixDates() {
+  document.querySelectorAll("time.meta-info").forEach(el => {
+    const update = el.getAttribute("data-update") || el.getAttribute("datetime");
+    if (update) {
+      el.innerHTML = `
+        <svg class="icon main-color small"><use xlink:href="#calendar-icon"></use></svg>
+        ${formatDate(update)}
+      `;
+    }
+  });
+}
+
 
   // ===== Load rating homepage =====
   async function loadRatings(){
@@ -48,7 +52,7 @@
         const data=await res.json();
 
         if(!data.total||data.total===0){
-          ratingBox.innerHTML=`<span style="color:#aaa;">Belum ada</span>`;
+          ratingBox.innerHTML=`<span style="color:#aaa;font-weight:300;">Belum ada rating nih</span>`;
           ratingBox.classList.add("loaded");
           continue;
         }
