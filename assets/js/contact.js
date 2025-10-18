@@ -1,6 +1,6 @@
 /* =====================================================
-   Grip & Review — Contact Form Handler
-   Version: 1.0.0
+   Grip & Review — Contact Form Handler (Simplified)
+   Version: 1.1.0
    Author: Grip & Review
    ===================================================== */
 
@@ -12,19 +12,12 @@
   const nameInput = document.getElementById('hk-name');
   const emailInput = document.getElementById('hk-email');
   const subjectInput = document.getElementById('hk-subject');
-  const userFields = document.getElementById('hk-user-fields');
   const honeypot = document.getElementById('hk-robot-check');
 
   /* === CONFIG === */
   const BACKEND_URL = "https://gripandreview-contact.kangadoelcakep.workers.dev";
   const MIN_SUBMIT_TIME = 2000; // ms (anti spam bot)
   const MAX_MESSAGE_LEN = 500;
-
-  /* === INIT USER CACHE === */
-  const userData = JSON.parse(localStorage.getItem('hkUser') || '{}');
-  if (userData.email && userData.name) {
-    userFields.classList.add('hk-hidden');
-  }
 
   /* === MESSAGE COUNTER === */
   msg.addEventListener('input', () => {
@@ -66,63 +59,58 @@
     return valid;
   }
 
-  /* === ANTI-SPAM === */
+  /* === ANTI-SPAM TIMER === */
   const formStart = Date.now();
 
   /* === SUBMIT HANDLER === */
   form.addEventListener('submit', async e => {
     e.preventDefault();
 
-    // 1️⃣ Honeypot check
+    // 🧠 Honeypot (anti bot)
     if (honeypot.value !== '') return;
 
-    // 2️⃣ Timing check
+    // 🕒 Timing check
     if (Date.now() - formStart < MIN_SUBMIT_TIME) {
       showToast('Terlalu cepat, coba lagi.', 'error');
       return;
     }
 
-    // 3️⃣ Validate fields
+    // ✅ Validate fields
     if (!validate()) {
       showToast('Mohon lengkapi form dengan benar.', 'error');
       return;
     }
 
-    // 4️⃣ Build payload
+    // 📦 Build payload
     const payload = {
       type: 'contact',
-      name: userData.name || nameInput.value.trim(),
-      email: userData.email || emailInput.value.trim(),
+      name: nameInput.value.trim(),
+      email: emailInput.value.trim(),
       subject: subjectInput.value.trim(),
       message: msg.value.trim(),
       source: window.location.hostname,
     };
 
-    // 5️⃣ Disable button while sending
+    // 🚀 Kirim
     const button = form.querySelector('button[type="submit"]');
     const originalText = button.textContent;
     button.textContent = 'Mengirim...';
     button.disabled = true;
 
-    // 6️⃣ Send to backend
     try {
       const res = await fetch(BACKEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
       });
+
       const data = await res.json();
 
       if (data.status === 'success') {
-        // Save user for next visit
-        localStorage.setItem('hkUser', JSON.stringify({
-          name: payload.name,
-          email: payload.email
-        }));
         form.reset();
         showToast('Pesan berhasil dikirim 🎉', 'success');
       } else {
-        showToast('Gagal mengirim pesan.', 'error');
+        showToast(data.message || 'Gagal mengirim pesan.', 'error');
       }
     } catch (err) {
       console.error(err);
