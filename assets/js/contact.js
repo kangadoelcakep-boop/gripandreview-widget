@@ -34,6 +34,15 @@
     toast.className = `hk-toast show hk-${type}`;
     setTimeout(() => toast.classList.remove('show'), 3500);
   }
+   // === SANITIZER ===
+function sanitize(str) {
+  return str
+    .replace(/[<>]/g, '')                // Hapus tanda < dan >
+    .replace(/script/gi, '')             // Hapus kata "script"
+    .replace(/javascript:/gi, '')        // Hapus "javascript:" URL
+    .replace(/on\w+="[^"]*"/gi, '')      // Hapus event handler (onclick, onload, dll)
+    .trim();
+}
 
   /* === VALIDATION === */
   function validate() {
@@ -83,13 +92,15 @@
 
     // 📦 Build payload
     const payload = {
-      type: 'contact',
-      name: nameInput.value.trim(),
-      email: emailInput.value.trim(),
-      subject: subjectInput.value.trim(),
-      message: msg.value.trim(),
-      source: window.location.hostname,
-    };
+     type: 'contact',
+     name: sanitize(nameInput.value),
+     email: sanitize(emailInput.value),
+     subject: sanitize(subjectInput.value),
+     message: sanitize(msg.value),
+     source: window.location.hostname,
+     origin: window.location.origin
+   };
+
 
     // 🚀 Kirim
     const button = form.querySelector('button[type="submit"]');
