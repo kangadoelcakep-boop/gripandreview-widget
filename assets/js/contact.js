@@ -34,14 +34,19 @@
     toast.className = `hk-toast show hk-${type}`;
     setTimeout(() => toast.classList.remove('show'), 3500);
   }
-   // === SANITIZER ===
-function sanitize(str) {
-  return str
-    .replace(/[<>]/g, '')                // Hapus tanda < dan >
-    .replace(/script/gi, '')             // Hapus kata "script"
-    .replace(/javascript:/gi, '')        // Hapus "javascript:" URL
-    .replace(/on\w+="[^"]*"/gi, '')      // Hapus event handler (onclick, onload, dll)
-    .trim();
+   function sanitizeFrontend(s = '') {
+  return String(s || '')
+    .replace(/[<>]/g, '')          // hapus tag delimiter
+    .replace(/`/g, '')             // hapus backticks
+    .replace(/["']/g, '')          // hapus kutip
+    .replace(/\\/g, '')            // hapus backslash
+    .replace(/;/g, '')             // hapus semicolon
+    .replace(/script/gi, '')       // hapus kata script
+    .replace(/javascript:/gi, '')  // hapus javascript: scheme
+    .replace(/on\w+=/gi, '')       // hapus attribute event like onerror=
+    .replace(/\$\{.*?\}/g, '')     // hapus template ${...}
+    .trim()
+    .substring(0, 1000);           // safety max length
 }
 
   /* === VALIDATION === */
@@ -93,12 +98,12 @@ function sanitize(str) {
     // 📦 Build payload
     const payload = {
      type: 'contact',
-     name: sanitize(nameInput.value),
-     email: sanitize(emailInput.value),
-     subject: sanitize(subjectInput.value),
-     message: sanitize(msg.value),
-     source: window.location.hostname,
-     origin: window.location.origin
+     name: sanitizeFrontend(nameInput.value),
+     email: sanitizeFrontend(emailInput.value),
+     subject: sanitizeFrontend(subjectInput.value),
+     message: sanitizeFrontend(msg.value),
+     origin: window.location.origin,
+     source: window.location.hostname
    };
 
 
