@@ -110,7 +110,7 @@
       const res = await fetch(`${API_URL}/validate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email })
+        body: JSON.stringify({ email, origin: window.location.origin })
       });
       const d = await res.json();
       return d.state === "approved";
@@ -236,7 +236,12 @@
     form.addEventListener("submit", async e => {
       e.preventDefault();
       const fd = new FormData(form);
-      const data = { name: fd.get("name"), email: fd.get("email"), joinUrl: window.location.href };
+      const data = {
+        name: fd.get("name"),
+        email: fd.get("email"),
+        joinUrl: window.location.href,
+        origin: window.location.origin,
+      };
       showToast("⏳ Memproses validasi...", "info");
 
       try {
@@ -319,7 +324,8 @@
         text: fd.get("review"),
         marketplace: fd.get("marketplace"),
         seller: fd.get("seller"),
-        postUrl
+        postUrl,
+        origin: window.location.origin,
       };
 
       showToast("⏳ Mengirim ulasan...", "info");
