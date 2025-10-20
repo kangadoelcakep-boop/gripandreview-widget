@@ -1,7 +1,8 @@
 /* =====================================================
-   Grip & Review — Contact Form Handler (Simplified)
-   Version: 1.1.0
-   Author: Grip & Review
+   Grip & Review — Contact Form Handler (Enhanced v1.2.0)
+   + Ambil IP Publik via ipify (fallback)
+   + Auto geo (via Cloudflare header)
+   + Aman dari injeksi
    ===================================================== */
 
 (() => {
@@ -16,10 +17,10 @@
 
   /* === CONFIG === */
   const BACKEND_URL = "https://gripandreview-contact.kangadoelcakep.workers.dev";
-  const MIN_SUBMIT_TIME = 2000; // ms (anti spam bot)
+  const MIN_SUBMIT_TIME = 2000;
   const MAX_MESSAGE_LEN = 500;
 
-  /* === MESSAGE COUNTER === */
+  /* === COUNTER === */
   msg.addEventListener('input', () => {
     const len = msg.value.length;
     charCount.textContent = len;
@@ -28,26 +29,28 @@
     }
   });
 
-  /* === TOAST FUNCTION === */
+  /* === TOAST === */
   function showToast(text, type = 'success') {
     toast.textContent = text;
     toast.className = `hk-toast show hk-${type}`;
     setTimeout(() => toast.classList.remove('show'), 3500);
   }
-   function sanitizeFrontend(s = '') {
-  return String(s || '')
-    .replace(/[<>]/g, '')          // hapus tag delimiter
-    .replace(/`/g, '')             // hapus backticks
-    .replace(/["']/g, '')          // hapus kutip
-    .replace(/\\/g, '')            // hapus backslash
-    .replace(/;/g, '')             // hapus semicolon
-    .replace(/script/gi, '')       // hapus kata script
-    .replace(/javascript:/gi, '')  // hapus javascript: scheme
-    .replace(/on\w+=/gi, '')       // hapus attribute event like onerror=
-    .replace(/\$\{.*?\}/g, '')     // hapus template ${...}
-    .trim()
-    .substring(0, 1000);           // safety max length
-}
+
+  /* === SANITIZER === */
+  function sanitizeFrontend(s = '') {
+    return String(s || '')
+      .replace(/[<>]/g, '')
+      .replace(/`/g, '')
+      .replace(/["']/g, '')
+      .replace(/\\/g, '')
+      .replace(/;/g, '')
+      .replace(/script/gi, '')
+      .replace(/javascript:/gi, '')
+      .replace(/on\w+=/gi, '')
+      .replace(/\$\{.*?\}/g, '')
+      .trim()
+      .substring(0, 1000);
+  }
 
   /* === VALIDATION === */
   function validate() {
@@ -59,7 +62,6 @@
       { el: subjectInput, id: 'hk-subject-error', cond: v => v.trim() !== '' },
       { el: msg, id: 'hk-message-error', cond: v => v.trim() !== '' }
     ];
-
     fields.forEach(f => {
       const err = document.getElementById(f.id);
       if (!f.cond(f.el.value)) {
@@ -69,58 +71,73 @@
         err.style.display = 'none';
       }
     });
-
     return valid;
   }
 
-  /* === ANTI-SPAM TIMER === */
+  /* === DAPATKAN IP PUBLIK === */
+  async function fetchClientIp(timeout = 2500) {
+    try {
+      const controller = new AbortController();
+      const id = setTimeout(() => controller.abort(), timeout);
+      const res = await fetch('https://api.ipify.org?format=json', { signal: controller.signal });
+      clearTimeout(id);
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.ip || null;
+    } catch {
+      return null;
+    }
+  }
+
   const formStart = Date.now();
 
-  /* === SUBMIT HANDLER === */
+  /* === SUBMIT === */
   form.addEventListener('submit', async e => {
     e.preventDefault();
 
-    // 🧠 Honeypot (anti bot)
     if (honeypot.value !== '') return;
 
-    // 🕒 Timing check
     if (Date.now() - formStart < MIN_SUBMIT_TIME) {
       showToast('Terlalu cepat, coba lagi.', 'error');
       return;
     }
 
-    // ✅ Validate fields
     if (!validate()) {
       showToast('Mohon lengkapi form dengan benar.', 'error');
       return;
     }
 
-    // 📦 Build payload
-    const payload = {
-     type: 'contact',
-     name: sanitizeFrontend(nameInput.value),
-     email: sanitizeFrontend(emailInput.value),
-     subject: sanitizeFrontend(subjectInput.value),
-     message: sanitizeFrontend(msg.value),
-     origin: window.location.origin,
-     source: window.location.hostname
-   };
-
-
-    // 🚀 Kirim
+    // ⏳ Ubah tombol
     const button = form.querySelector('button[type="submit"]');
     const originalText = button.textContent;
     button.textContent = 'Mengirim...';
     button.disabled = true;
 
+    // 🌍 Ambil IP publik (fallback jika header CF kosong)
+    const clientIp = await fetchClientIp();
+
+    // 📦 Payload lengkap
+    const payload = {
+      type: 'contact',
+      name: sanitizeFrontend(nameInput.value),
+      email: sanitizeFrontend(emailInput.value),
+      subject: sanitizeFrontend(subjectInput.value),
+      message: sanitizeFrontend(msg.value),
+      origin: window.location.origin,
+      source: window.location.hostname,
+      client_ip: clientIp, // dikirim ke Worker
+      ua: navigator.userAgent,
+      tz: Intl.DateTimeFormat().resolvedOptions().timeZone
+    };
+
     try {
       const res = await fetch(BACKEND_URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify(payload)
       });
 
-      const data = await res.json();
+      const data = await res.json().catch(() => ({ status: 'error', message: 'Invalid response' }));
 
       if (data.status === 'success') {
         form.reset();
